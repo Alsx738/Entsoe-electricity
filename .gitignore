@@ -1,0 +1,28 @@
+# Environment variables
+.env
+
+# Encoded secrets
+kestra/.env
+kestra/.env_encoded
+terraform/credentials.json
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfvars
+
+# Virtual environments
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local data output
+data_output/
+*.csv
+*.parquet
+*.xml

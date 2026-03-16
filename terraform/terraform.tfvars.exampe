@@ -1,0 +1,5 @@
+project_id    = "<YOUR_PROJECT_ID>"
+region        = "<YOUR_REGION>"
+zone          = "<YOUR_ZONE>"
+bucket_name   = "<YOUR_BUCKET_NAME>"
+bq_dataset_id = "<YOUR_DATASET_ID>"

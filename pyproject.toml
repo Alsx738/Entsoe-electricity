@@ -1,0 +1,17 @@
+[project]
+name = "entsoe-data-engineering"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "entsoe-py>=0.7.11",
+    "google-auth>=2.49.1",
+    "google-cloud-storage>=3.9.0",
+    "lxml>=6.0.2",
+    "pandas>=3.0.1",
+    "pendulum>=3.2.0",
+    "pyarrow>=23.0.1",
+    "python-dotenv>=1.2.2",
+    "requests>=2.32.5",
+]

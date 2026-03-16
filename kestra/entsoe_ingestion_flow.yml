@@ -1,0 +1,74 @@
+id: entsoe-daily-ingestion
+namespace: data_engineering.entsoe
+
+description: |
+  Daily pipeline that downloads ENTSO-E data (Load, Generation, Physical Flows)
+  for the previous day and uploads it to Google Cloud Storage as raw XML.
+  Triggered every night at 03:00 Italian time.
+
+# ==========================================
+# VARIABLES
+# ==========================================
+variables:
+  # Set to a specific country code (e.g. 'IT') to download only one country
+  target_country: "ALL"
+  gcp_project_id: "entsoe-electricity"
+  bucket_name: "entsoe-data-lake-test"
+
+# ==========================================
+# INPUTS (for manual execution)
+# ==========================================
+inputs:
+  - id: custom_date
+    type: DATE
+    description: "Leave empty to use today's date (scheduled/backfill run). Set a specific date to force a custom run (e.g. 2026-03-10)."
+    required: false
+
+# ==========================================
+# TRIGGER: daily schedule
+# ==========================================
+triggers:
+  - id: daily_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 3 * * *"         # Every day at 03:00
+    timezone: "Europe/Rome"   # DST is handled automatically by Kestra
+
+# ==========================================
+# TASKS
+# ==========================================
+tasks:
+  - id: ingest_entsoe_data
+    type: io.kestra.plugin.docker.Run
+    containerImage: "europe-west1-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+
+    # Credentials to pull the image from the private GCP registry
+    credentials:
+      registry: "europe-west1-docker.pkg.dev"
+      username: "_json_key"
+      password: "{{ secret('GCP_CREDS_JSON') }}"
+
+    # CLI arguments forwarded to the Python ENTRYPOINT
+    # If custom_date is empty, falls back to the trigger date
+    commands:
+      - "--country"
+      - "{{ vars.target_country }}"
+      - "--date"
+      - "{{ inputs.custom_date ?? trigger.date | date('yyyy-MM-dd') }}"
+
+    # Environment variables passed into the Docker container
+    env:
+      ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
+      GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
+      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
+
+  - id: notify_on_failure
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ outputs.ingest_entsoe_data.exitCode != 0 }}"
+    then:
+      - id: send_alert
+        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+        url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+        payload: |
+          {
+            "text": "ENTSO-E ingestion failed for {{ trigger.date | date('yyyy-MM-dd') }}. Exit code: {{ outputs.ingest_entsoe_data.exitCode }}"
+          }

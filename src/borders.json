@@ -1,0 +1,69 @@
+{
+  "IT": {
+    "domain": "10YIT-GRTN-----B",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "GR", "domain": "10YGR-HTSO-----Y"},
+      {"code": "ME", "domain": "10YCS-CG-TSO---S"},
+      {"code": "MT", "domain": "10Y1001A1001A93C"},
+      {"code": "SI", "domain": "10YSI-ELES-----O"}
+    ]
+  },
+  "FR": {
+    "domain": "10YFR-RTE------C",
+    "borders": [
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "ES", "domain": "10YES-REE------0"},
+      {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"}
+    ]
+  },
+  "DE": {
+    "domain": "10Y1001A1001A83F",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "CZ", "domain": "10YCZ-CEPS-----N"},
+      {"code": "DK", "domain": "10Y1001A1001A65H"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "LU", "domain": "10YLU-CEGEDEL-NQ"},
+      {"code": "NL", "domain": "10YNL----------L"},
+      {"code": "NO", "domain": "10YNO-0--------C"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"},
+      {"code": "SE", "domain": "10YSE-1--------K"}
+    ]
+  },
+  "ES": {
+    "domain": "10YES-REE------0",
+    "borders": [
+      {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "PT", "domain": "10YPT-REN------W"},
+      {"code": "MA", "domain": "10YMA-ONE------C"}
+    ]
+  },
+  "CH": {
+    "domain": "10YCH-SWISSGRIDZ",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"}
+    ]
+  },
+  "AT": {
+    "domain": "10YAT-APG------L",
+    "borders": [
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "CZ", "domain": "10YCZ-CEPS-----N"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"},
+      {"code": "SI", "domain": "10YSI-ELES-----O"}
+    ]
+  }
+}
