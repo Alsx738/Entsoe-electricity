@@ -18,16 +18,14 @@ ENTSO-E API → Python script (Docker) → Google Cloud Storage (raw XML)
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.3.0
-- A [Google Cloud](https://console.cloud.google.com/) project
-- An [ENTSO-E API token](https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_authentication_and_authorisation)
+- Docker Desktop
+- Terraform 
+- A Google Cloud project
+- An ENTSO-E API token
 
----
+## Setup
 
-## Setup & Reproduction
-
-### Step 1 — Clone the repository
+1. Clone the repository.
 
 ```bash
 git clone https://github.com/Alsx738/Entsoe-electricity.git
@@ -144,8 +142,8 @@ Kestra UI will be available at [http://localhost:8080](http://localhost:8080).
 
 1. Open [http://localhost:8080](http://localhost:8080)
 2. Go to **Flows** and click **Create**
-3. Paste the contents of `kestra/entsoe_ingestion_flow.yml`
-4. Save the flow
+3. Paste the contents of `kestra/daily.yml` and `kestra/historical.yml`
+4. Save both flows
 
 The pipeline will run automatically every night at **03:00 (Europe/Rome)**. You can also trigger it manually by clicking **Execute** and optionally specifying a custom date.
 
@@ -155,23 +153,23 @@ The pipeline will run automatically every night at **03:00 (Europe/Rome)**. You 
 
 ```
 .
-├── Dockerfile                          # Container definition for the ingestion script
-├── pyproject.toml                      # Python dependencies (managed by uv)
-├── src/
-│   ├── ingest_entsoe.py                # Main ingestion script
-│   ├── countries.json                  # European country codes
-│   └── borders.json                    # Cross-border definitions
-├── kestra/
-│   ├── docker-compose.yml              # Kestra + PostgreSQL local setup
-│   ├── entsoe_ingestion_flow.yml       # Kestra flow definition
-│   ├── .env.example                    # Template for Postgres credentials
-│   ├── .env_encoded.example            # Template for Kestra secrets
-│   ├── .env                            # (gitignored) Local Postgres credentials
-│   └── .env_encoded                    # (gitignored) Base64-encoded Kestra secrets
-└── terraform/
-    ├── main.tf                         # GCP resources (GCS, BigQuery, Artifact Registry)
-    ├── variables.tf                    # Input variable definitions
-    ├── terraform.tfvars.example        # (gitignored) Your variable values example
-    ├── terraform.tfvars                # (gitignored) Your variable values
-    └── credentials.json                # (gitignored) GCP service account key
+|-- Dockerfile
+|-- pyproject.toml
+|-- README.md
+|-- src/
+|   |-- daily_ingestion.py
+|   |-- historical_ingestion.py
+|   |-- countries.json
+|   `-- borders.json
+|-- kestra/
+|   |-- docker-compose.yml
+|   |-- daily.yml
+|   |-- historical.yml
+|   |-- .env.example
+|   `-- .env_encoded.example
+`-- terraform/
+        |-- main.tf
+        |-- variables.tf
+   |-- terraform.tfvars.example
+        `-- credentials.json
 ```
