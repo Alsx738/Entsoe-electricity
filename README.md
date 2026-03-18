@@ -170,6 +170,6 @@ The pipeline will run automatically every night at **03:00 (Europe/Rome)**. You 
 `-- terraform/
         |-- main.tf
         |-- variables.tf
-   |-- terraform.tfvars.example
-        `-- credentials.json
+        |-- terraform.tfvars.example
+        
 ```
