@@ -20,4 +20,4 @@ ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Run the ingestion script
-ENTRYPOINT ["python", "/app/src/ingest_entsoe.py"]
+ENTRYPOINT ["python"]
