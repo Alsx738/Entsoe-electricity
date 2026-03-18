@@ -1,0 +1,56 @@
+id: entsoe-historical-bootstrap
+namespace: data_engineering.entsoe
+
+description: Backfill pipeline for yearly historical ENTSO-E XML data.
+
+variables:
+  gcp_project_id: "entsoe-electricity"
+  bucket_name: "entsoe-data-lake-test"
+
+inputs:
+  - id: start_date
+    type: DATE
+    description: "Start of the backfill period (e.g. 2023-01-01)"
+  - id: end_date
+    type: DATE
+    description: "End of the backfill period (e.g. 2025-12-31)"
+  - id: country
+    type: STRING
+    defaults: "ALL"
+
+tasks:
+  - id: ingest_historical_data
+    type: io.kestra.plugin.docker.Run
+    containerImage: "europe-west1-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+    
+    credentials:
+      registry: "europe-west1-docker.pkg.dev"
+      username: "_json_key"
+      password: "{{ secret('GCP_CREDS_JSON') }}"
+
+    commands:
+      - "/app/src/historical_ingestion.py"
+      - "--start"
+      - "{{ inputs.start_date }}"
+      - "--end"
+      - "{{ inputs.end_date }}"
+      - "--country"
+      - "{{ inputs.country }}"
+
+    env:
+      ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
+      GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
+      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
+      MAX_WORKERS: "10"
+
+  - id: notify_on_failure
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ outputs.ingest_historical_data.exitCode != 0 }}"
+    then:
+      - id: send_alert
+        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+        url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+        payload: |
+          {
+            "text": "ENTSO-E Historical backfill failed for period {{ inputs.start_date }} to {{ inputs.end_date }}."
+          }
