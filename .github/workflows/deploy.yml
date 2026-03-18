@@ -1,0 +1,42 @@
+name: Build and Push to Artifact Registry
+
+on:
+  push:
+    branches:
+      - main  # Triggers only when pushing to main
+
+env:
+  GAR_LOCATION: europe-west1-docker.pkg.dev
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REPOSITORY: entsoe
+  IMAGE: ingest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Authenticate with Google Cloud
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # 3. Configure Docker to use gcloud credentials
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}
+
+      # 4. Build the Docker image
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:latest .
+
+      # 5. Push the image to Artifact Registry
+      - name: Push Docker Image
+        run: |
+          docker push ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:latest
