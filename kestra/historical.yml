@@ -4,8 +4,9 @@ namespace: data_engineering.entsoe
 description: Backfill pipeline for yearly historical ENTSO-E XML data.
 
 variables:
-  gcp_project_id: "entsoe-electricity"
-  bucket_name: "entsoe-data-lake-test"
+  gcp_project_id: "entsoe-electricity-v2"
+  bucket_name: "entsoe-data-lake-test5689"
+  region: "europe-west4"
 
 inputs:
   - id: start_date
@@ -21,10 +22,10 @@ inputs:
 tasks:
   - id: ingest_historical_data
     type: io.kestra.plugin.docker.Run
-    containerImage: "europe-west1-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
-    
+    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+    pullPolicy: ALWAYS
     credentials:
-      registry: "europe-west1-docker.pkg.dev"
+      registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
 
@@ -43,12 +44,35 @@ tasks:
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
       MAX_WORKERS: "10"
 
+  - id: process_with_spark
+    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
+    name: "entsoe-historical-transform"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    projectId: "{{ vars.gcp_project_id }}"
+    region: "{{ vars.region }}"
+    execution:
+      subnetworkUri: "projects/{{ vars.gcp_project_id }}/regions/{{ vars.region }}/subnetworks/entsoe-spark-subnet"
+    mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_historical.py"
+    args:
+      - "gs://{{ vars.bucket_name }}"
+    runtime:
+      version: "2.1"
+      properties:
+        "spark.jars.packages": "com.databricks:spark-xml_2.13:0.18.0"
+        "spark.driver.cores": "4"
+        "spark.executor.cores": "4"
+        "spark.driver.memory": "3g"
+        "spark.executor.memory": "3g"
+        "spark.executor.instances": "2"
+        "spark.dataproc.driver.disk.size.gb": "100"
+        "spark.dataproc.executor.disk.size.gb": "100"
+
   - id: notify_on_failure
     type: io.kestra.plugin.core.flow.If
     condition: "{{ outputs.ingest_historical_data.exitCode != 0 }}"
     then:
       - id: send_alert
-        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+        type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
         url: "{{ secret('SLACK_WEBHOOK_URL') }}"
         payload: |
           {
