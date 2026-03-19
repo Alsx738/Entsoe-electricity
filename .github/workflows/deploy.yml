@@ -6,8 +6,9 @@ on:
       - main  # Triggers only when pushing to main
 
 env:
-  GAR_LOCATION: europe-west1-docker.pkg.dev
+  GAR_LOCATION: europe-west4-docker.pkg.dev
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
   REPOSITORY: entsoe
   IMAGE: ingest
 
@@ -40,3 +41,8 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:latest
+
+      # 6. Upload Spark scripts to GCS scripts folder
+      - name: Upload Spark scripts to GCS
+        run: |
+          gcloud storage rsync --recursive ScriptForSpark gs://${{ env.GCS_BUCKET }}/scripts
