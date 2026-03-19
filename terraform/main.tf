@@ -20,9 +20,14 @@ provider "google" {
 # ==========================================
 locals {
   services_to_enable = [
+    "cloudresourcemanager.googleapis.com", # Required for project-level service discovery/management
+    "serviceusage.googleapis.com",         # Required to enable/disable APIs programmatically
     "storage.googleapis.com",         # Cloud Storage
     "bigquery.googleapis.com",        # BigQuery
-    "artifactregistry.googleapis.com" # Artifact Registry (Docker images)
+    "artifactregistry.googleapis.com", # Artifact Registry (Docker images)
+    "dataproc.googleapis.com", # <--- OBBLIGATORIA
+    "compute.googleapis.com",   # <--- NECESSARIA PER LA RETE
+    "iam.googleapis.com" # <--- Aggiunta per la gestione dei permessi
   ]
 }
 
@@ -77,4 +82,44 @@ resource "google_artifact_registry_repository" "docker_repo" {
   format        = "DOCKER"
 
   depends_on = [google_project_service.enabled_apis]
+}
+
+# ==========================================
+# 5. NETWORKING PER DATAPROC SERVERLESS
+# ==========================================
+
+# Dedicated VPC for Dataproc workloads.
+resource "google_compute_network" "vpc" {
+  name                    = "entsoe-vpc"
+  auto_create_subnetworks = false
+  depends_on              = [google_project_service.enabled_apis]
+}
+
+# Subnet with Private Google Access enabled.
+resource "google_compute_subnetwork" "subnet" {
+  name                     = "entsoe-spark-subnet"
+  ip_cidr_range            = "10.0.0.0/24"
+  region                   = var.region
+  network                  = google_compute_network.vpc.id
+  private_ip_google_access = true
+}
+
+# Allow internal communication within the subnet.
+resource "google_compute_firewall" "allow_internal_spark" {
+  name    = "allow-internal-spark"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
+  allow {
+    protocol = "udp"
+    ports    = ["0-65535"]
+  }
+  allow {
+    protocol = "icmp"
+  }
+
+  source_ranges = ["10.0.0.0/24"]
 }
