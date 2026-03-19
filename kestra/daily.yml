@@ -2,52 +2,36 @@ id: entsoe-daily-ingestion
 namespace: data_engineering.entsoe
 
 description: |
-  Daily pipeline that downloads ENTSO-E data (Load, Generation, Physical Flows)
-  for the previous day and uploads raw XML files to Google Cloud Storage.
-  Supports both scheduled and manual executions.
+  Daily pipeline that ingests ENTSO-E raw XML data and then runs Spark processing on Dataproc.
 
-# ==========================================
-# VARIABLES (Namespace-level defaults)
-# ==========================================
 variables:
   target_country: "ALL"
-  gcp_project_id: "entsoe-electricity"
-  bucket_name: "entsoe-data-lake-test"
+  gcp_project_id: "entsoe-electricity-v2"
+  bucket_name: "entsoe-data-lake-test5689"
+  region: "europe-west4"
 
-# ==========================================
-# INPUTS
-# ==========================================
 inputs:
   - id: custom_date
     type: DATE
-    description: "Optional: set a specific date for a manual run (e.g. 2026-03-10). If empty, use the trigger date."
+    description: "Optional run date (yyyy-MM-dd). If empty, trigger date is used."
     required: false
 
-# ==========================================
-# TRIGGER: Run every night at 03:00
-# ==========================================
 triggers:
   - id: daily_schedule
     type: io.kestra.plugin.core.trigger.Schedule
     cron: "0 3 * * *"
     timezone: "Europe/Rome"
 
-# ==========================================
-# TASKS
-# ==========================================
 tasks:
   - id: ingest_entsoe_data
     type: io.kestra.plugin.docker.Run
-    containerImage: "europe-west1-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
-
-    # Credentials for the private GCP registry
+    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+    pullPolicy: ALWAYS
     credentials:
-      registry: "europe-west1-docker.pkg.dev"
+      registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
 
-    # CLI arguments forwarded to ENTRYPOINT ["python"]
-    # If custom_date is provided, it overrides the trigger date
     commands:
       - "/app/src/daily_ingestion.py"
       - "--country"
@@ -55,21 +39,40 @@ tasks:
       - "--date"
       - "{{ inputs.custom_date ?? trigger.date | date('yyyy-MM-dd') }}"
 
-    # Environment variables passed to the container
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
       GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
       MAX_WORKERS: "5"
 
-# ==========================================
-# ERROR HANDLING: Slack notification
-# ==========================================
+  - id: process_daily_with_spark
+    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
+    name: "entsoe-daily-transform"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    projectId: "{{ vars.gcp_project_id }}"
+    region: "{{ vars.region }}"
+    execution:
+      subnetworkUri: "projects/{{ vars.gcp_project_id }}/regions/{{ vars.region }}/subnetworks/entsoe-spark-subnet"
+    mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_daily.py"
+    args:
+      - "gs://{{ vars.bucket_name }}"
+    runtime:
+      version: "2.1"
+      properties:
+        "spark.jars.packages": "com.databricks:spark-xml_2.13:0.18.0"
+        "spark.driver.cores": "4"
+        "spark.executor.cores": "4"
+        "spark.driver.memory": "3g"
+        "spark.executor.memory": "3g"
+        "spark.executor.instances": "2"
+        "spark.dataproc.driver.disk.size.gb": "100"
+        "spark.dataproc.executor.disk.size.gb": "100"
+
 errors:
   - id: notify_on_failure
-    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
     url: "{{ secret('SLACK_WEBHOOK_URL') }}"
     payload: |
       {
-        "text": " *ENTSO-E Daily Ingestion Failed*\n*Flow:* {{ flow.id }}\n*Execution:* {{ execution.id }}\n*Date:* {{ trigger.date | date('yyyy-MM-dd') }}\n*Check logs here:* {{ flow.url }}"
+        "text": "ENTSO-E daily pipeline failed. Flow={{ flow.id }}, Execution={{ execution.id }}"
       }
