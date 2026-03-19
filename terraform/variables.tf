@@ -6,13 +6,13 @@ variable "project_id" {
 variable "region" {
   description = "The region in which to deploy resources (e.g. europe-west1)"
   type        = string
-  default     = "europe-west1"
+  default     = "europe-west4"
 }
 
 variable "zone" {
   description = "The zone for zonal resources"
   type        = string
-  default     = "europe-west1-d"
+  default     = "europe-west4-a"
 }
 
 variable "bucket_name" {
