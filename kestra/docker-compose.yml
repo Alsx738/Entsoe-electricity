@@ -20,10 +20,11 @@ services:
       retries: 10
 
   kestra:
-    image: kestra/kestra:latest
+    image: kestra/kestra:v1.3.3
     pull_policy: always    
     user: "root"
-    command: server standalone
+    command: >
+      server standalone
     volumes:
       - kestra-data:/app/storage
       - /var/run/docker.sock:/var/run/docker.sock  
@@ -43,7 +44,8 @@ services:
             secret-env-prefix: SECRET_
           server:
             basic-auth:
-              enabled: false
+              username: "${KESTRA_BASIC_AUTH_USERNAME}"
+              password: "${KESTRA_BASIC_AUTH_PASSWORD}"
           repository:
             type: postgres
           storage:
