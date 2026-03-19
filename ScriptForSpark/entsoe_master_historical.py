@@ -1,5 +1,6 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -11,6 +12,12 @@ spark = (
     .appName("ENTSOE_Master_Historical_GCS")
     .getOrCreate()
 )
+
+
+def _build_period_key(start_date, end_date):
+    start = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y%m%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y%m%d")
+    return f"{start}-{end}"
 
 
 def _path_exists(path):
@@ -34,9 +41,9 @@ def _explode_if_array(df, source_col, alias):
     return df.select("*", F.col(source_col).alias(alias)).drop(source_col)
 
 
-def process_load(bucket_path):
+def process_load(bucket_path, period_key):
     print("Starting historical ACTUAL LOAD")
-    path = f"{bucket_path}/raw/entsoe/historical/actual_load/*/*/load.xml"
+    path = f"{bucket_path}/raw/entsoe/historical/actual_load/country=*/period={period_key}/*/load.xml"
     output = f"{bucket_path}/processed/load"
 
     df_raw = (
@@ -79,9 +86,9 @@ def process_load(bucket_path):
     print("Historical LOAD completed")
 
 
-def process_generation(bucket_path):
+def process_generation(bucket_path, period_key):
     print("Starting historical GENERATION")
-    path = f"{bucket_path}/raw/entsoe/historical/generation/*/*/generation.xml"
+    path = f"{bucket_path}/raw/entsoe/historical/generation/country=*/period={period_key}/*/generation.xml"
     output = f"{bucket_path}/processed/generation"
 
     df_raw = (
@@ -126,9 +133,9 @@ def process_generation(bucket_path):
     print("Historical GENERATION completed")
 
 
-def process_flows(bucket_path):
+def process_flows(bucket_path, period_key):
     print("Starting historical PHYSICAL FLOWS")
-    path = f"{bucket_path}/raw/entsoe/historical/physical_flows/*/*/*/*/flow.xml"
+    path = f"{bucket_path}/raw/entsoe/historical/physical_flows/country=*/direction=*/border=*/period={period_key}/*/flow.xml"
     output = f"{bucket_path}/processed/physical_flows"
 
     df_raw = (
@@ -178,17 +185,20 @@ def process_flows(bucket_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: spark-submit entsoe_master_historical.py <bucket_path>")
+    if len(sys.argv) < 4:
+        print("Usage: spark-submit entsoe_master_historical.py <bucket_path> <start_date> <end_date>")
         sys.exit(1)
 
     gcs_bucket = sys.argv[1].rstrip("/")
+    start_date = sys.argv[2]
+    end_date = sys.argv[3]
+    period = _build_period_key(start_date, end_date)
 
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = [
-            executor.submit(process_load, gcs_bucket),
-            executor.submit(process_generation, gcs_bucket),
-            executor.submit(process_flows, gcs_bucket),
+            executor.submit(process_load, gcs_bucket, period),
+            executor.submit(process_generation, gcs_bucket, period),
+            executor.submit(process_flows, gcs_bucket, period),
         ]
         for future in futures:
             future.result()

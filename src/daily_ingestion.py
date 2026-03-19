@@ -60,18 +60,24 @@ def load_config(filename: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def get_execution_window(date_str: str | None):
+def resolve_daily_window(start_date: str | None, end_date: str | None):
     """
-    Calculates the time range for the API request.
-    Defaults to the full day preceding the execution date.
+    Calculates the time range for API requests and storage period key.
+    Daily runs should pass start=end for a single target day.
     """
-    base_date = pendulum.parse(date_str) if date_str else pendulum.now("UTC")
-    target_day = base_date.subtract(days=1).start_of("day")
-    
-    start = target_day.format("YYYYMMDDHHmm")
-    end = target_day.end_of("day").format("YYYYMMDDHHmm")
-    
-    return start, end, target_day
+    if start_date and end_date:
+        start_day = pendulum.parse(start_date).start_of("day")
+        end_day = pendulum.parse(end_date).start_of("day")
+    else:
+        # Backward-compatible default: use previous UTC day.
+        default_day = pendulum.now("UTC").subtract(days=1).start_of("day")
+        start_day = default_day
+        end_day = default_day
+
+    period_start = start_day.format("YYYYMMDDHHmm")
+    period_end = end_day.end_of("day").format("YYYYMMDDHHmm")
+    period_key = f"{start_day.format('YYYYMMDD')}-{end_day.format('YYYYMMDD')}"
+    return period_start, period_end, period_key
 
 # --- ENTSO-E EXTRACTION LOGIC ---
 
@@ -90,41 +96,41 @@ def fetch_and_save(params: dict, path: str, label: str):
     except Exception as e:
         print(f"[ERROR] Request failed for {label}: {e}")
 
-def process_country_data(country: dict, p_start: str, p_end: str, day: pendulum.DateTime):
+def process_country_data(country: dict, p_start: str, p_end: str, period_key: str):
     """Handles Actual Load and Generation data extraction for a country."""
     code, domain = country["code"], country["domain"]
-    date_path = f"year={day.year}/month={day.month:02}/day={day.day:02}"
+    base_path = f"country={code}/period={period_key}"
     
     # Task: Actual Load (A65)
     fetch_and_save(
         {"documentType": "A65", "processType": "A16", "outBiddingZone_Domain": domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/actual_load/country={code}/{date_path}/load.xml",
+        f"raw/entsoe/daily/actual_load/{base_path}/load.xml",
         f"Load-{code}"
     )
     
     # Task: Aggregated Generation (A75)
     fetch_and_save(
         {"documentType": "A75", "processType": "A16", "in_Domain": domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/generation/country={code}/{date_path}/generation.xml",
+        f"raw/entsoe/daily/generation/{base_path}/generation.xml",
         f"Generation-{code}"
     )
 
-def process_border_flow(base_code: str, base_domain: str, neighbor: dict, p_start: str, p_end: str, day: pendulum.DateTime):
+def process_border_flow(base_code: str, base_domain: str, neighbor: dict, p_start: str, p_end: str, period_key: str):
     """Handles Physical Flow (Import/Export) extraction for a specific border."""
     n_code, n_domain = neighbor["code"], neighbor["domain"]
-    date_path = f"year={day.year}/month={day.month:02}/day={day.day:02}"
+    base_path = f"country={base_code}/direction={{direction}}/border={n_code}/period={period_key}"
 
     # Direction: Import (Neighbor -> Base)
     fetch_and_save(
         {"documentType": "A11", "in_Domain": base_domain, "out_Domain": n_domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/physical_flows/country={base_code}/direction=import/border={n_code}/{date_path}/flow.xml",
+        f"raw/entsoe/daily/physical_flows/{base_path.format(direction='import')}/flow.xml",
         f"Flow-Import-{base_code}-{n_code}"
     )
     
     # Direction: Export (Base -> Neighbor)
     fetch_and_save(
         {"documentType": "A11", "in_Domain": n_domain, "out_Domain": base_domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/physical_flows/country={base_code}/direction=export/border={n_code}/{date_path}/flow.xml",
+        f"raw/entsoe/daily/physical_flows/{base_path.format(direction='export')}/flow.xml",
         f"Flow-Export-{base_code}-{n_code}"
     )
 
@@ -133,14 +139,24 @@ def process_border_flow(base_code: str, base_domain: str, neighbor: dict, p_star
 def main():
     """Main entry point for the Kestra task."""
     parser = argparse.ArgumentParser(description="ENTSO-E High-Concurrency Ingestion Script")
-    parser.add_argument("--date", type=str, help="Execution date (YYYY-MM-DD)")
+    parser.add_argument("--start", type=str, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, help="End date (YYYY-MM-DD)")
+    parser.add_argument("--date", type=str, help="Deprecated: execution date (YYYY-MM-DD)")
     parser.add_argument("--country", type=str, default="ALL", help="ISO Country code or 'ALL'")
     args = parser.parse_args()
 
-    period_start, period_end, target_day = get_execution_window(args.date)
+    # Compatibility bridge: if only --date is provided, treat it as start=end of previous day logic.
+    start_arg = args.start
+    end_arg = args.end
+    if (not start_arg or not end_arg) and args.date:
+        previous_day = pendulum.parse(args.date).subtract(days=1).to_date_string()
+        start_arg = previous_day
+        end_arg = previous_day
+
+    period_start, period_end, period_key = resolve_daily_window(start_arg, end_arg)
     target_country = args.country.upper()
 
-    print(f"[START] Ingestion started for data date: {target_day.to_date_string()}")
+    print(f"[START] Ingestion started for period: {period_key}")
 
     countries = load_config("countries.json")
     borders = load_config("borders.json")
@@ -156,13 +172,13 @@ def main():
 
         # Schedule Load and Generation tasks
         for country in countries:
-            futures.append(executor.submit(process_country_data, country, period_start, period_end, target_day))
+            futures.append(executor.submit(process_country_data, country, period_start, period_end, period_key))
 
         # Schedule Cross-Border Flow tasks
         for base_code, info in borders.items():
             base_domain = info["domain"]
             for neighbor in info.get("borders", []):
-                futures.append(executor.submit(process_border_flow, base_code, base_domain, neighbor, period_start, period_end, target_day))
+                futures.append(executor.submit(process_border_flow, base_code, base_domain, neighbor, period_start, period_end, period_key))
 
         # Block until all threads complete
         for future in as_completed(futures):

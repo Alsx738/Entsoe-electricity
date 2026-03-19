@@ -55,6 +55,8 @@ tasks:
     mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_historical.py"
     args:
       - "gs://{{ vars.bucket_name }}"
+      - "{{ inputs.start_date }}"
+      - "{{ inputs.end_date }}"
     runtime:
       version: "2.1"
       properties:
@@ -72,7 +74,7 @@ tasks:
     condition: "{{ outputs.ingest_historical_data.exitCode != 0 }}"
     then:
       - id: send_alert
-        type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
+        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
         url: "{{ secret('SLACK_WEBHOOK_URL') }}"
         payload: |
           {

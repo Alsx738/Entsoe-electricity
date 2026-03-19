@@ -66,6 +66,13 @@ def split_into_yearly_ranges(start_date: str, end_date: str):
         current = year_end.add(days=1)
     return ranges
 
+
+def build_period_key(start_date: str, end_date: str) -> str:
+    """Builds a stable key used in raw storage paths."""
+    start = pendulum.parse(start_date).format("YYYYMMDD")
+    end = pendulum.parse(end_date).format("YYYYMMDD")
+    return f"{start}-{end}"
+
 # --- EXTRACTION ENGINE ---
 
 def fetch_and_process(params: dict, blob_path: str, label: str):
@@ -81,7 +88,7 @@ def fetch_and_process(params: dict, blob_path: str, label: str):
     except Exception as e:
         print(f"[ERROR] {label} - Request failed: {e}")
 
-def process_historical_country(country: dict, start: pendulum.DateTime, end: pendulum.DateTime):
+def process_historical_country(country: dict, start: pendulum.DateTime, end: pendulum.DateTime, period_key: str):
     """Handles Load and Generation extraction for a specific country and year."""
     code, domain = country["code"], country["domain"]
     year = start.year
@@ -91,18 +98,18 @@ def process_historical_country(country: dict, start: pendulum.DateTime, end: pen
     # Actual Load (A65)
     fetch_and_process(
         {"documentType": "A65", "processType": "A16", "outBiddingZone_Domain": domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/historical/actual_load/country={code}/year={year}/load.xml",
+        f"raw/entsoe/historical/actual_load/country={code}/period={period_key}/chunk_year={year}/load.xml",
         f"Load-{code}-{year}"
     )
 
     # Aggregated Generation (A75)
     fetch_and_process(
         {"documentType": "A75", "processType": "A16", "in_Domain": domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/historical/generation/country={code}/year={year}/generation.xml",
+        f"raw/entsoe/historical/generation/country={code}/period={period_key}/chunk_year={year}/generation.xml",
         f"Generation-{code}-{year}"
     )
 
-def process_historical_border(base_code: str, base_domain: str, neighbor: dict, start: pendulum.DateTime, end: pendulum.DateTime):
+def process_historical_border(base_code: str, base_domain: str, neighbor: dict, start: pendulum.DateTime, end: pendulum.DateTime, period_key: str):
     """Handles Physical Flow extraction (Import/Export) for a specific border and year."""
     n_code, n_domain = neighbor["code"], neighbor["domain"]
     year = start.year
@@ -112,14 +119,14 @@ def process_historical_border(base_code: str, base_domain: str, neighbor: dict, 
     # Flow: Import
     fetch_and_process(
         {"documentType": "A11", "in_Domain": base_domain, "out_Domain": n_domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/historical/physical_flows/country={base_code}/direction=import/border={n_code}/year={year}/flow.xml",
+        f"raw/entsoe/historical/physical_flows/country={base_code}/direction=import/border={n_code}/period={period_key}/chunk_year={year}/flow.xml",
         f"Flow-Import-{base_code}-{n_code}-{year}"
     )
 
     # Flow: Export
     fetch_and_process(
         {"documentType": "A11", "in_Domain": n_domain, "out_Domain": base_domain, "periodStart": p_start, "periodEnd": p_end},
-        f"raw/entsoe/historical/physical_flows/country={base_code}/direction=export/border={n_code}/year={year}/flow.xml",
+        f"raw/entsoe/historical/physical_flows/country={base_code}/direction=export/border={n_code}/period={period_key}/chunk_year={year}/flow.xml",
         f"Flow-Export-{base_code}-{n_code}-{year}"
     )
 
@@ -133,6 +140,7 @@ def main():
     args = parser.parse_args()
 
     yearly_ranges = split_into_yearly_ranges(args.start, args.end)
+    period_key = build_period_key(args.start, args.end)
     target_country = args.country.upper()
 
     countries = load_config("countries.json")
@@ -150,12 +158,12 @@ def main():
         for start_dt, end_dt in yearly_ranges:
             # 1. Schedule Country tasks (Load & Generation)
             for country in countries:
-                futures.append(executor.submit(process_historical_country, country, start_dt, end_dt))
+                futures.append(executor.submit(process_historical_country, country, start_dt, end_dt, period_key))
             
             # 2. Schedule Border tasks (Physical Flows)
             for base_code, info in borders_config.items():
                 for neighbor in info.get("borders", []):
-                    futures.append(executor.submit(process_historical_border, base_code, info["domain"], neighbor, start_dt, end_dt))
+                    futures.append(executor.submit(process_historical_border, base_code, info["domain"], neighbor, start_dt, end_dt, period_key))
 
         # Wait for completion
         for future in as_completed(futures):

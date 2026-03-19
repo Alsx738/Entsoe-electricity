@@ -36,8 +36,10 @@ tasks:
       - "/app/src/daily_ingestion.py"
       - "--country"
       - "{{ vars.target_country }}"
-      - "--date"
-      - "{{ inputs.custom_date ?? trigger.date | date('yyyy-MM-dd') }}"
+      - "--start"
+      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
+      - "--end"
+      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
 
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
@@ -56,6 +58,8 @@ tasks:
     mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_daily.py"
     args:
       - "gs://{{ vars.bucket_name }}"
+      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
+      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
     runtime:
       version: "2.1"
       properties:
