@@ -47,6 +47,28 @@ tasks:
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
       MAX_WORKERS: "5"
 
+  - id: ingest_daily_prices
+    type: io.kestra.plugin.docker.Run
+    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+    pullPolicy: ALWAYS
+    credentials:
+      registry: "europe-west4-docker.pkg.dev"
+      username: "_json_key"
+      password: "{{ secret('GCP_CREDS_JSON') }}"
+
+    commands:
+      - "/app/src/dailyPrice.py"
+      - "--country"
+      - "{{ vars.target_country }}"
+      - "--date"
+      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
+
+    env:
+      ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
+      GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
+      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
+      MAX_WORKERS: "5"
+
   - id: process_daily_with_spark
     type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
     name: "entsoe-daily-transform"
@@ -71,28 +93,6 @@ tasks:
         "spark.executor.instances": "2"
         "spark.dataproc.driver.disk.size.gb": "100"
         "spark.dataproc.executor.disk.size.gb": "100"
-
-  - id: ingest_daily_prices
-    type: io.kestra.plugin.docker.Run
-    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
-    pullPolicy: ALWAYS
-    credentials:
-      registry: "europe-west4-docker.pkg.dev"
-      username: "_json_key"
-      password: "{{ secret('GCP_CREDS_JSON') }}"
-
-    commands:
-      - "/app/src/dailyPrice.py"
-      - "--country"
-      - "{{ vars.target_country }}"
-      - "--date"
-      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
-
-    env:
-      ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
-      GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
-      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
-      MAX_WORKERS: "5"
 
 errors:
   - id: notify_on_failure

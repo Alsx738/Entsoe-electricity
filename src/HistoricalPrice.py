@@ -2,6 +2,7 @@ import os
 import json
 import argparse
 import time
+from pathlib import Path
 import pendulum
 import requests
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ ENTSOE_TOKEN = os.getenv("ENTSOE_TOKEN")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "entsoe-data-lake")
 API_URL = "https://web-api.tp.entsoe.eu/api"
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))
-MAPPING_FILE = "European Price Zones Mapping (2017-2026).json"
+MAPPING_FILE = Path(__file__).resolve().parent / "European Price Zones Mapping (2017-2026).json"
 
 if not ENTSOE_TOKEN:
     raise ValueError("ENTSOE_TOKEN non impostato nel file .env")
@@ -117,7 +118,7 @@ def main():
 
     # Caricamento Mapping
     try:
-        with open(MAPPING_FILE, "r") as f:
+        with open(MAPPING_FILE, "r", encoding="utf-8") as f:
             mapping = json.load(f)
     except FileNotFoundError:
         log(f"🛑 ERRORE: File {MAPPING_FILE} non trovato!")
