@@ -22,8 +22,9 @@ def _build_period_key(start_date, end_date):
 
 def _path_exists(path):
     hconf = spark._jsc.hadoopConfiguration()
-    fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(hconf)
-    return fs.exists(spark._jvm.org.apache.hadoop.fs.Path(path))
+    j_path = spark._jvm.org.apache.hadoop.fs.Path(path)
+    fs = j_path.getFileSystem(hconf)
+    return fs.exists(j_path)
 
 
 def _append_without_existing_ids(df, output_path, partition_cols):

@@ -1,0 +1,65 @@
+id: entsoe-monthly-load-compaction
+namespace: data_engineering.entsoe
+
+description: |
+  Monthly Spark compaction for ENTSO-E processed load parquet partitions.
+  It rewrites country/year partitions into fewer parquet files.
+
+variables:
+  gcp_project_id: "entsoe-electricity-v2"
+  bucket_name: "entsoe-data-lake-test5689"
+  region: "europe-west4"
+  target_files: "4"
+
+inputs:
+  - id: target_year
+    type: STRING
+    required: false
+    description: "Optional target year (yyyy). If empty, year is auto-derived from trigger date - 1 day."
+  - id: countries
+    type: STRING
+    required: true
+    defaults: "ALL"
+    description: "Comma-separated country list (e.g. IT,FR) or ALL"
+
+triggers:
+  - id: monthly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 4 1 * *"
+    timezone: "Europe/Rome"
+
+tasks:
+  - id: compact_load_with_spark
+    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
+    name: "entsoe-load-monthly-compaction"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    projectId: "{{ vars.gcp_project_id }}"
+    region: "{{ vars.region }}"
+    execution:
+      subnetworkUri: "projects/{{ vars.gcp_project_id }}/regions/{{ vars.region }}/subnetworks/entsoe-spark-subnet"
+    mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_compact_load.py"
+    args:
+      - "gs://{{ vars.bucket_name }}"
+      - "{{ inputs.target_year ?? ((trigger.date | dateAdd(-1, 'DAYS')) | date('yyyy')) }}"
+      - "{{ vars.target_files }}"
+      - "--countries"
+      - "{{ inputs.countries }}"
+    runtime:
+      version: "2.1"
+      properties:
+        "spark.driver.cores": "4"
+        "spark.executor.cores": "4"
+        "spark.driver.memory": "3g"
+        "spark.executor.memory": "3g"
+        "spark.executor.instances": "2"
+        "spark.dataproc.driver.disk.size.gb": "100"
+        "spark.dataproc.executor.disk.size.gb": "100"
+
+errors:
+  - id: notify_on_failure
+    type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
+    url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+    payload: |
+      {
+        "text": "ENTSO-E monthly load compaction failed. Flow={{ flow.id }}, Execution={{ execution.id }}"
+      }
