@@ -69,6 +69,30 @@ tasks:
         "spark.dataproc.driver.disk.size.gb": "100"
         "spark.dataproc.executor.disk.size.gb": "100"
 
+  - id: ingest_historical_prices
+    type: io.kestra.plugin.docker.Run
+    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/ingest:latest"
+    pullPolicy: ALWAYS
+    credentials:
+      registry: "europe-west4-docker.pkg.dev"
+      username: "_json_key"
+      password: "{{ secret('GCP_CREDS_JSON') }}"
+
+    commands:
+      - "/app/src/HistoricalPrice.py"
+      - "--start"
+      - "{{ inputs.start_date }}"
+      - "--end"
+      - "{{ inputs.end_date }}"
+      - "--country"
+      - "{{ inputs.country }}"
+
+    env:
+      ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
+      GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
+      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
+      MAX_WORKERS: "5"
+
   - id: notify_on_failure
     type: io.kestra.plugin.core.flow.If
     condition: "{{ outputs.ingest_historical_data.exitCode != 0 }}"

@@ -55,22 +55,27 @@ def load_config(filename: str):
         return json.load(f)
 
 def split_into_yearly_ranges(start_date: str, end_date: str):
-    """Splits a date range into yearly chunks for ENTSO-E API compliance."""
-    start = pendulum.parse(start_date)
-    end = pendulum.parse(end_date)
+    """Splits a UTC date range into year chunks using [start, end) semantics."""
+    start = pendulum.parse(start_date).in_tz("UTC").start_of("day")
+    end = pendulum.parse(end_date).in_tz("UTC").start_of("day")
+    if end < start:
+        raise ValueError("Invalid date range: end date must be on or after start date.")
+
+    end_exclusive = end.add(days=1)
     ranges = []
     current = start
-    while current <= end:
-        year_end = min(current.end_of("year"), end)
-        ranges.append((current, year_end))
-        current = year_end.add(days=1)
+    while current < end_exclusive:
+        next_year_start = current.start_of("year").add(years=1)
+        chunk_end_exclusive = min(next_year_start, end_exclusive)
+        ranges.append((current, chunk_end_exclusive))
+        current = chunk_end_exclusive
     return ranges
 
 
 def build_period_key(start_date: str, end_date: str) -> str:
     """Builds a stable key used in raw storage paths."""
-    start = pendulum.parse(start_date).format("YYYYMMDD")
-    end = pendulum.parse(end_date).format("YYYYMMDD")
+    start = pendulum.parse(start_date).in_tz("UTC").format("YYYYMMDD")
+    end = pendulum.parse(end_date).in_tz("UTC").format("YYYYMMDD")
     return f"{start}-{end}"
 
 # --- EXTRACTION ENGINE ---
@@ -88,12 +93,12 @@ def fetch_and_process(params: dict, blob_path: str, label: str):
     except Exception as e:
         print(f"[ERROR] {label} - Request failed: {e}")
 
-def process_historical_country(country: dict, start: pendulum.DateTime, end: pendulum.DateTime, period_key: str):
+def process_historical_country(country: dict, start: pendulum.DateTime, end_exclusive: pendulum.DateTime, period_key: str):
     """Handles Load and Generation extraction for a specific country and year."""
     code, domain = country["code"], country["domain"]
     year = start.year
     p_start = start.format("YYYYMMDDHHmm")
-    p_end = end.format("YYYYMMDDHHmm")
+    p_end = end_exclusive.format("YYYYMMDDHHmm")
 
     # Actual Load (A65)
     fetch_and_process(
@@ -109,12 +114,12 @@ def process_historical_country(country: dict, start: pendulum.DateTime, end: pen
         f"Generation-{code}-{year}"
     )
 
-def process_historical_border(base_code: str, base_domain: str, neighbor: dict, start: pendulum.DateTime, end: pendulum.DateTime, period_key: str):
+def process_historical_border(base_code: str, base_domain: str, neighbor: dict, start: pendulum.DateTime, end_exclusive: pendulum.DateTime, period_key: str):
     """Handles Physical Flow extraction (Import/Export) for a specific border and year."""
     n_code, n_domain = neighbor["code"], neighbor["domain"]
     year = start.year
     p_start = start.format("YYYYMMDDHHmm")
-    p_end = end.format("YYYYMMDDHHmm")
+    p_end = end_exclusive.format("YYYYMMDDHHmm")
 
     # Flow: Import
     fetch_and_process(

@@ -1,0 +1,15 @@
+entsoe_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('DBT_DATASET', 'entsoe_analytics_dev') }}"
+      location: "{{ env_var('DBT_LOCATION', 'europe-west4') }}"
+      threads: 4
+      keyfile: "{{ env_var('GCP_SA_KEY_FILE', '../terraform/credentials.json') }}"
+      priority: interactive
+      job_retries: 1
+      job_execution_timeout_seconds: 300
+      job_creation_timeout_seconds: 300

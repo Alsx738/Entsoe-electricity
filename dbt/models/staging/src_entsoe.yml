@@ -1,0 +1,41 @@
+version: 2
+
+sources:
+  - name: gcs_source
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: entsoe_warehouse
+    loader: gcs
+    tables:
+      - name: load_processed
+        external:
+          location: "gs://entsoe-data-lake-test5689/processed/load/*"
+          options:
+            format: parquet
+            hive_partition_uri_prefix: "gs://entsoe-data-lake-test5689/processed/load/"
+          partitions:
+            - name: country
+              data_type: string
+            - name: year
+              data_type: int64
+      - name: generation_processed
+        external:
+          location: "gs://entsoe-data-lake-test5689/processed/generation/*"
+          options:
+            format: parquet
+            hive_partition_uri_prefix: "gs://entsoe-data-lake-test5689/processed/generation/"
+          partitions:
+            - name: country
+              data_type: string
+            - name: year
+              data_type: int64
+      - name: crossborder_flows_processed
+        external:
+          location: "gs://entsoe-data-lake-test5689/processed/physical_flows/*"
+          options:
+            format: parquet
+            hive_partition_uri_prefix: "gs://entsoe-data-lake-test5689/processed/physical_flows/"
+          partitions:
+            - name: main_country
+              data_type: string
+            - name: year
+              data_type: int64        

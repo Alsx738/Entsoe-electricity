@@ -1,0 +1,22 @@
+name: entsoe_dbt
+version: 1.0.0
+profile: entsoe_dbt
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+
+target-path: target
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  entsoe_dbt:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

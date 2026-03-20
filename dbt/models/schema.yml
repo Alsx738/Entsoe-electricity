@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: stg_entsoe_load
+    columns:
+      - name: country
+        tests:
+          - not_null
+      - name: ds
+        tests:
+          - not_null
+  - name: mart_entsoe_load_daily
+    columns:
+      - name: country
+        tests:
+          - not_null
+      - name: ds
+        tests:
+          - not_null

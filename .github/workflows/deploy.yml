@@ -10,39 +10,85 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
   REPOSITORY: entsoe
-  IMAGE: ingest
 
 jobs:
-  deploy:
+  detect_changes:
     runs-on: ubuntu-latest
+    outputs:
+      ingest: ${{ steps.filter.outputs.ingest }}
+      dbt: ${{ steps.filter.outputs.dbt }}
     steps:
-      # 1. Check out the repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Authenticate with Google Cloud
-      - id: 'auth'
-        name: 'Authenticate to Google Cloud'
-        uses: 'google-github-actions/auth@v2'
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ingest:
+              - 'Dockerfile'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'src/**'
+              - 'ScriptForSpark/**'
+              - 'kestra/**'
+            dbt:
+              - 'Dockerfile.dbt'
+              - 'dbt/**'
+
+  build_ingest:
+    needs: detect_changes
+    if: ${{ needs.detect_changes.outputs.ingest == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
-      # 3. Configure Docker to use gcloud credentials
       - name: Configure Docker
         run: |
           gcloud auth configure-docker ${{ env.GAR_LOCATION }}
 
-      # 4. Build the Docker image
-      - name: Build Docker Image
+      - name: Build ingest image
         run: |
-          docker build -t ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:latest .
+          docker build -f Dockerfile -t ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/ingest:latest .
 
-      # 5. Push the image to Artifact Registry
-      - name: Push Docker Image
+      - name: Push ingest image
         run: |
-          docker push ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:latest
+          docker push ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/ingest:latest
 
-      # 6. Upload Spark scripts to GCS scripts folder
       - name: Upload Spark scripts to GCS
         run: |
           gcloud storage rsync --recursive ScriptForSpark gs://${{ env.GCS_BUCKET }}/scripts
+
+  build_dbt:
+    needs: detect_changes
+    if: ${{ needs.detect_changes.outputs.dbt == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}
+
+      - name: Build dbt image
+        run: |
+          docker build -f Dockerfile.dbt -t ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/dbt:latest .
+
+      - name: Push dbt image
+        run: |
+          docker push ${{ env.GAR_LOCATION }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/dbt:latest

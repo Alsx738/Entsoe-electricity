@@ -62,22 +62,43 @@ def load_config(filename: str):
 
 def resolve_daily_window(start_date: str | None, end_date: str | None):
     """
-    Calculates the time range for API requests and storage period key.
-    Daily runs should pass start=end for a single target day.
+    Calculates a UTC day-aligned API window and storage period key.
+    ENTSO-E windows are sent as [start, end) where end is exclusive.
     """
     if start_date and end_date:
-        start_day = pendulum.parse(start_date).start_of("day")
-        end_day = pendulum.parse(end_date).start_of("day")
+        start_day = pendulum.parse(start_date).in_tz("UTC").start_of("day")
+        end_day = pendulum.parse(end_date).in_tz("UTC").start_of("day")
+    elif start_date:
+        start_day = pendulum.parse(start_date).in_tz("UTC").start_of("day")
+        end_day = start_day
+    elif end_date:
+        end_day = pendulum.parse(end_date).in_tz("UTC").start_of("day")
+        start_day = end_day
     else:
         # Backward-compatible default: use previous UTC day.
         default_day = pendulum.now("UTC").subtract(days=1).start_of("day")
         start_day = default_day
         end_day = default_day
 
+    if end_day < start_day:
+        raise ValueError("Invalid date range: end date must be on or after start date.")
+
     period_start = start_day.format("YYYYMMDDHHmm")
-    period_end = end_day.end_of("day").format("YYYYMMDDHHmm")
+    period_end = end_day.add(days=1).format("YYYYMMDDHHmm")
     period_key = f"{start_day.format('YYYYMMDD')}-{end_day.format('YYYYMMDD')}"
     return period_start, period_end, period_key
+
+
+def resolve_day_from_date_arg(date_arg: str) -> str:
+    """
+    Resolves --date into a UTC day string (YYYY-MM-DD).
+    - Date-only input (YYYY-MM-DD): use that exact UTC day.
+    - Datetime/timestamp input: treat as execution instant and use previous UTC day.
+    """
+    parsed = pendulum.parse(date_arg).in_tz("UTC")
+    if len(date_arg.strip()) == 10:
+        return parsed.to_date_string()
+    return parsed.subtract(days=1).to_date_string()
 
 # --- ENTSO-E EXTRACTION LOGIC ---
 
@@ -145,13 +166,20 @@ def main():
     parser.add_argument("--country", type=str, default="ALL", help="ISO Country code or 'ALL'")
     args = parser.parse_args()
 
-    # Compatibility bridge: if only --date is provided, treat it as start=end of previous day logic.
+    # Normalize missing boundaries.
     start_arg = args.start
     end_arg = args.end
-    if (not start_arg or not end_arg) and args.date:
-        previous_day = pendulum.parse(args.date).subtract(days=1).to_date_string()
-        start_arg = previous_day
-        end_arg = previous_day
+
+    if start_arg and not end_arg:
+        end_arg = start_arg
+    elif end_arg and not start_arg:
+        start_arg = end_arg
+
+    # Compatibility bridge for schedulers passing an execution date/timestamp.
+    if not start_arg and not end_arg and args.date:
+        resolved_day = resolve_day_from_date_arg(args.date)
+        start_arg = resolved_day
+        end_arg = resolved_day
 
     period_start, period_end, period_key = resolve_daily_window(start_arg, end_arg)
     target_country = args.country.upper()

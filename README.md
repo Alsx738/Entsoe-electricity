@@ -9,9 +9,10 @@ Orchestrated by **Kestra**, containerized with **Docker**, and provisioned with 
 ## Architecture
 
 ```
-ENTSO-E API → Python script (Docker) → Google Cloud Storage (raw XML)
-                       ↑
-                   Kestra (scheduler & orchestrator)
+ENTSO-E API -> Docker ingestion tasks -> GCS raw zone
+                             -> Dataproc Serverless Spark -> GCS processed parquet
+                     ^
+                  Kestra flows (daily + historical)
 ```
 
 ---
@@ -44,6 +45,8 @@ In the Google Cloud Console:
    - `BigQuery Admin` — to create BigQuery datasets
    - `Artifact Registry Admin` — to push and pull Docker images
    - `Service Usage Admin` — to enable APIs via Terraform
+   - `Compute Network Admin` - for VPC/subnet/firewall
+   - `Dataproc Editor` (or narrower Dataproc roles as needed)
 3. Create and download a **JSON key** for the service account.
 4. Place the JSON key at `terraform/credentials.json` (this file is gitignored).
 
@@ -59,8 +62,8 @@ Create a `terraform.tfvars` file (also gitignored):
 
 ```hcl
 project_id    = "your-gcp-project-id"
-region        = "europe-west1"
-zone          = "europe-west1-d"
+region        = "eg. europe-west1"
+zone          = "eg. europe-west1-d"
 bucket_name   = "your-unique-bucket-name"
 bq_dataset_id = "entsoe_data"
 ```
@@ -83,6 +86,7 @@ This creates:
 ### Step 4 — Build and Push the Docker Image
 
 Authenticate Docker with Google Artifact Registry first:
+Check region match
 
 ```bash
 gcloud auth configure-docker europe-west1-docker.pkg.dev
