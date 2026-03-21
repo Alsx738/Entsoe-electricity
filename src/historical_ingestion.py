@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from google.cloud import storage
 from google.oauth2 import service_account
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from installed_capacity_ingestion import ingest_installed_capacity
 
 # --- CONFIGURATION ---
 load_dotenv()
@@ -176,6 +177,10 @@ def main():
                 future.result()
             except Exception as e:
                 print(f"[CRITICAL] Worker exception: {e}")
+
+    # Installed capacity is annual (A68/A33); ingestion helper expands any
+    # user-provided date range to full-year ENTSO-E windows.
+    ingest_installed_capacity(args.start, args.end, target_country)
 
     print("[COMPLETED] Historical backfill job finished.")
 

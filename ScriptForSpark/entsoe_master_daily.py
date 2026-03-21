@@ -43,6 +43,20 @@ def _explode_if_array(df, source_col, alias):
     return df.select("*", F.col(source_col).alias(alias)).drop(source_col)
 
 
+def _point_value_col(df, point_col="pt"):
+    """Resolve the value field used by ENTSO-E points across document types."""
+    field_names = {f.name for f in df.schema[point_col].dataType.fields}
+    if "quantity" in field_names:
+        return F.col(f"{point_col}.quantity").cast("double")
+    if "price.amount" in field_names:
+        return F.col(f"{point_col}.`price.amount`").cast("double")
+    if "price_amount" in field_names:
+        return F.col(f"{point_col}.price_amount").cast("double")
+    if "price" in field_names:
+        return F.col(f"{point_col}.price.amount").cast("double")
+    raise ValueError("Unsupported Point schema: expected quantity or price amount field")
+
+
 def process_load(bucket_path, period_key):
     print("Starting daily ACTUAL LOAD")
     path = f"{bucket_path}/raw/entsoe/daily/actual_load/country=*/period={period_key}/load.xml"
@@ -198,6 +212,54 @@ def process_flows(bucket_path, period_key):
     print("Daily FLOWS completed")
 
 
+def process_prices(bucket_path, start_date):
+    print("Starting daily PRICES")
+    run_day = datetime.strptime(start_date, "%Y-%m-%d")
+    path = (
+        f"{bucket_path}/raw/entsoe/daily/prices/"
+        f"country=*/year={run_day.strftime('%Y')}/month={run_day.strftime('%m')}/day={run_day.strftime('%d')}/*.xml"
+    )
+    output = f"{bucket_path}/processed/prices"
+
+    df_raw = (
+        spark.read.format("xml")
+        .option("rowTag", "TimeSeries")
+        .load(path)
+        .withColumn("country", F.regexp_extract(F.input_file_name(), r"country=([A-Z]{2})", 1))
+    )
+
+    df_period = _explode_if_array(df_raw, "Period", "p")
+
+    point_type = df_period.schema["p"].dataType["Point"].dataType
+    if isinstance(point_type, ArrayType):
+        df_points = df_period.select(
+            "country",
+            F.col("p.timeInterval.start").alias("start"),
+            F.col("p.resolution").alias("res"),
+            F.explode("p.Point").alias("pt"),
+        )
+    else:
+        df_points = df_period.select(
+            "country",
+            F.col("p.timeInterval.start").alias("start"),
+            F.col("p.resolution").alias("res"),
+            F.col("p.Point").alias("pt"),
+        )
+
+    df = (
+        df_points
+        .withColumn("res_min", F.regexp_extract("res", r"PT(\d+)M", 1).cast("int"))
+        .withColumn("timestamp", F.expr("start + make_interval(0,0,0,0,0, (pt.position - 1) * res_min, 0)"))
+        .withColumn("price_eur_mwh", _point_value_col(df_points, "pt"))
+        .withColumn("year", F.year("timestamp"))
+        .withColumn("id", F.sha2(F.concat_ws("|", F.col("country"), F.col("timestamp")), 256))
+        .select("id", "timestamp", "country", "price_eur_mwh", "year")
+    )
+
+    _append_without_existing_ids(df, output, ["country", "year"])
+    print("Daily PRICES completed")
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         print("Usage: spark-submit entsoe_master_daily.py <bucket_path> <start_date> <end_date>")
@@ -208,11 +270,12 @@ if __name__ == "__main__":
     end_date = sys.argv[3]
     period = _build_period_key(start_date, end_date)
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(process_load, gcs_bucket, period),
             executor.submit(process_generation, gcs_bucket, period),
             executor.submit(process_flows, gcs_bucket, period),
+            executor.submit(process_prices, gcs_bucket, start_date),
         ]
         for future in futures:
             future.result()

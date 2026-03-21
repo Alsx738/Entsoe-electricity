@@ -37,7 +37,7 @@
   { "country": "BA", "bzn_eic": "10YBA-JPCC-----D", "bzn_name": "Bosnia & Herzegovina", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
   { "country": "MT", "bzn_eic": "10Y1001A1001A93G", "bzn_name": "Malta", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
   { "country": "XK", "bzn_eic": "10Y1001C--00100H", "bzn_name": "Kosovo", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
-  { "country": "MD", "bzn_eic": "10Y1001A1001A994", "bzn_name": "Moldova", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
+  { "country": "MD", "bzn_eic": "10Y1001A1001A990", "bzn_name": "Moldova", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
   { "country": "UA", "bzn_eic": "10Y1001C--00003F", "bzn_name": "Ukraine (IPS)", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
   { "country": "TR", "bzn_eic": "10YTR-TEIAS----W", "bzn_name": "Turkey", "valid_from": "2017-01-01", "valid_to": "2026-12-31" },
   { "country": "GE", "bzn_eic": "10Y1001A1001B012", "bzn_name": "Georgia", "valid_from": "2017-01-01", "valid_to": "2026-12-31" }

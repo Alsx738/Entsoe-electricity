@@ -25,8 +25,7 @@ def _normalize_countries(countries_arg):
     return [c.strip().upper() for c in countries_arg.split(",") if c.strip()]
 
 
-def compact_load_partitions(bucket_path, target_year, target_files, countries_arg):
-    base_output = f"{bucket_path}/processed/load"
+def compact_country_year_partitions(base_output, dataset_label, target_year, target_files, countries_arg):
     countries = _normalize_countries(countries_arg)
 
     if countries is None:
@@ -37,7 +36,7 @@ def compact_load_partitions(bucket_path, target_year, target_files, countries_ar
         fs = pattern_path.getFileSystem(hconf)
         statuses = fs.globStatus(pattern_path)
         if not statuses:
-            print(f"[INFO] No load partitions found for year={target_year}. Nothing to compact.")
+            print(f"[INFO] No {dataset_label} partitions found for year={target_year}. Nothing to compact.")
             return
 
         discovered = []
@@ -51,7 +50,7 @@ def compact_load_partitions(bucket_path, target_year, target_files, countries_ar
         countries = sorted(set(discovered))
 
     if not countries:
-        print(f"[INFO] No countries resolved for year={target_year}. Nothing to compact.")
+        print(f"[INFO] No countries resolved for {dataset_label}, year={target_year}. Nothing to compact.")
         return
 
     spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
@@ -60,10 +59,10 @@ def compact_load_partitions(bucket_path, target_year, target_files, countries_ar
     for country in countries:
         input_partition = f"{base_output}/country={country}/year={target_year}"
         if not _path_exists(input_partition):
-            print(f"[SKIP] Missing partition: country={country}, year={target_year}")
+            print(f"[SKIP] Missing {dataset_label} partition: country={country}, year={target_year}")
             continue
 
-        print(f"[START] Compacting country={country}, year={target_year}")
+        print(f"[START] Compacting {dataset_label} country={country}, year={target_year}")
         df = spark.read.parquet(input_partition)
 
         # Ensure partition columns are present and normalized.
@@ -83,9 +82,29 @@ def compact_load_partitions(bucket_path, target_year, target_files, countries_ar
         )
 
         compacted_count += 1
-        print(f"[DONE] Compacted country={country}, year={target_year}")
+        print(f"[DONE] Compacted {dataset_label} country={country}, year={target_year}")
 
-    print(f"[COMPLETED] Compaction finished. Partitions compacted: {compacted_count}")
+    print(f"[COMPLETED] {dataset_label} compaction finished. Partitions compacted: {compacted_count}")
+
+
+def compact_load_partitions(bucket_path, target_year, target_files, countries_arg):
+    compact_country_year_partitions(
+        base_output=f"{bucket_path}/processed/load",
+        dataset_label="load",
+        target_year=target_year,
+        target_files=target_files,
+        countries_arg=countries_arg,
+    )
+
+
+def compact_price_partitions(bucket_path, target_year, target_files, countries_arg):
+    compact_country_year_partitions(
+        base_output=f"{bucket_path}/processed/prices",
+        dataset_label="prices",
+        target_year=target_year,
+        target_files=target_files,
+        countries_arg=countries_arg,
+    )
 
 
 def main():
@@ -104,6 +123,7 @@ def main():
         raise ValueError("target_files must be >= 1")
 
     compact_load_partitions(bucket_path, year, target_files, args.countries)
+    compact_price_partitions(bucket_path, year, target_files, args.countries)
 
 
 if __name__ == "__main__":

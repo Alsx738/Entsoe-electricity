@@ -19,11 +19,14 @@
     {"code": "HU", "domain": "10YHU-MAVIR----U"},
     {"code": "IE", "domain": "10YIE-1001A00010"},
     {"code": "IT", "domain": "10YIT-GRTN-----B"},
+    {"code": "GE", "domain": "10Y1001A1001B012"},
     {"code": "LT", "domain": "10YLT-1001A0008Q"},
     {"code": "LU", "domain": "10YLU-CEGEDEL-NQ"},
     {"code": "LV", "domain": "10YLV-1001A00074"},
+    {"code": "MD", "domain": "10Y1001A1001A990"},
     {"code": "ME", "domain": "10YCS-CG-TSO---S"},
     {"code": "MK", "domain": "10YMK-MEPSO----8"},
+    {"code": "MT", "domain": "10Y1001A1001A93G"},
     {"code": "NL", "domain": "10YNL----------L"},
     {"code": "NO", "domain": "10YNO-0--------C"},
     {"code": "PL", "domain": "10YPL-AREA-----S"},
@@ -32,5 +35,8 @@
     {"code": "RS", "domain": "10YCS-SERBIATSOV"},
     {"code": "SE", "domain": "10YSE-1--------K"},
     {"code": "SI", "domain": "10YSI-ELES-----O"},
-    {"code": "SK", "domain": "10YSK-SEPS-----K"}
+    {"code": "SK", "domain": "10YSK-SEPS-----K"},
+    {"code": "TR", "domain": "10YTR-TEIAS----W"},
+    {"code": "UA", "domain": "10Y1001C--00003F"},
+    {"code": "XK", "domain": "10Y1001C--00100H"}
 ]
