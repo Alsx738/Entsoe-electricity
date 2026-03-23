@@ -21,7 +21,7 @@ inputs:
     description: "Optional end date. If empty, current year end is used."
   - id: country
     type: STRING
-    required: false
+    required: true
     defaults: "ALL"
 
 triggers:

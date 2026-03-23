@@ -1,19 +1,522 @@
 version: 2
 
 models:
-  - name: stg_entsoe_load
+  - name: stg_generation
+    description: >
+      Cleans and deduplicates raw hourly generation data from GCS.
+      Joins with the PSR type seed to resolve technology codes into readable names.
+      One row per unique measurement ID.
     columns:
+      - name: id
+        description: SHA-256 hash of (country, timestamp, psrType). Uniquely identifies one hourly measurement.
+        tests: [not_null, unique]
+      - name: timestamp
+        description: UTC timestamp of the measurement interval start.
+        tests: [not_null]
       - name: country
-        tests:
-          - not_null
-      - name: ds
-        tests:
-          - not_null
-  - name: mart_entsoe_load_daily
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: psr_code
+        description: ENTSO-E PSR type code (e.g. B16 for Solar).
+        tests: [not_null]
+      - name: energy_type
+        description: Human-readable technology name derived from psr_type_mapping seed.
+      - name: mw
+        description: Generated power in megawatts for the interval.
+      - name: year
+        description: Calendar year extracted from the timestamp, used as Parquet partition key.
+        tests: [not_null]
+
+  - name: stg_installed_capacity
+    description: >
+      Cleans and deduplicates annual installed generation capacity data from GCS.
+      Capacity is reported once per year per country per technology.
+      Rows with null capacity are excluded; zero-capacity rows are intentionally kept.
     columns:
+      - name: id
+        description: SHA-256 hash of (country, year, psrType).
+        tests: [not_null, unique]
+      - name: capacity_timestamp
+        description: Timestamp from the source XML representing the start of the capacity period.
+        tests: [not_null]
       - name: country
-        tests:
-          - not_null
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: psr_code
+        description: ENTSO-E PSR type code.
+        tests: [not_null]
+      - name: energy_type
+        description: Human-readable technology name derived from psr_type_mapping seed.
+      - name: installed_capacity_mw
+        description: Total installed capacity in megawatts for the given country, technology, and year.
+        tests: [not_null]
+      - name: year
+        description: Reporting year.
+        tests: [not_null]
+      - name: has_capacity_info
+        description: Always true in this model; included for schema consistency with joined models.
+
+  - name: stg_load
+    description: >
+      Cleans and deduplicates raw hourly electricity demand data from GCS.
+      One row per unique measurement ID.
+    columns:
+      - name: id
+        description: SHA-256 hash of (country, timestamp).
+        tests: [not_null, unique]
+      - name: timestamp
+        description: UTC timestamp of the measurement interval start.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: load_mw
+        description: Actual electricity demand in megawatts.
+        tests: [not_null]
+      - name: year
+        description: Calendar year, used as Parquet partition key.
+        tests: [not_null]
+
+  - name: stg_prices
+    description: >
+      Cleans and deduplicates raw hourly Day-Ahead Market prices from GCS.
+      Negative prices are valid and are preserved.
+    columns:
+      - name: id
+        description: SHA-256 hash of (country, timestamp).
+        tests: [not_null, unique]
+      - name: timestamp
+        description: UTC timestamp of the hour.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code of the bidding zone.
+        tests: [not_null]
+      - name: price_eur_mwh
+        description: Day-Ahead electricity price in EUR/MWh. Can be negative.
+        tests: [not_null]
+      - name: year
+        description: Calendar year.
+        tests: [not_null]
+
+  - name: stg_crossborder_flows
+    description: >
+      Cleans and deduplicates raw hourly physical cross-border electricity flows from GCS.
+      Each row represents flow in one direction between a pair of countries.
+    columns:
+      - name: id
+        description: SHA-256 hash of (main_country, border_country, direction, timestamp).
+        tests: [not_null, unique]
+      - name: timestamp
+        description: UTC timestamp of the measurement interval start.
+        tests: [not_null]
+      - name: main_country
+        description: The reference country for this flow record.
+        tests: [not_null]
+      - name: border_country
+        description: The neighbouring country exchanging electricity with main_country.
+        tests: [not_null]
+      - name: direction
+        description: Flow direction relative to main_country ('import' or 'export').
+        tests: [not_null]
+      - name: flow_mw
+        description: Exchanged power in megawatts (always positive; sign is encoded in direction).
+      - name: year
+        description: Calendar year.
+        tests: [not_null]
+
+  - name: int_generation_enriched
+    description: >
+      Adds time dimensions (month, hour, quarter, season, is_weekend) and analytical flags
+      to staged generation data. Classifies each technology as renewable or not.
+    columns:
+      - name: id
+        description: Same SHA-256 key as stg_generation.
+        tests: [not_null]
+      - name: timestamp
+        description: UTC timestamp of the measurement interval start.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: is_renewable
+        description: True for solar, wind, and hydro; false for gas, coal, and nuclear; null for ambiguous types (waste, storage).
+      - name: is_outlier
+        description: True when the raw mw value is null or non-positive.
+      - name: mw
+        description: Generated power in MW; null values replaced with 0.
+      - name: mw_raw
+        description: Original generated power in MW before null coalescing.
+
+  - name: int_generation_with_capacity
+    description: >
+      Joins enriched hourly generation with annual installed capacity on (country, psr_code, year).
+      Computes capacity utilisation ratios and applies a plausibility filter to suppress
+      normalisation metrics for unreliable capacity values (below 10 MW threshold).
+    columns:
+      - name: id
+        description: Same SHA-256 key as stg_generation.
+        tests: [not_null]
+      - name: timestamp
+        description: UTC timestamp of the measurement interval start.
+        tests: [not_null]
       - name: ds
+        description: Calendar date derived from timestamp.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: psr_code
+        description: ENTSO-E PSR type code.
+        tests: [not_null]
+      - name: year
+        description: Calendar year.
+        tests: [not_null]
+      - name: has_capacity_info
+        description: True when a capacity record was matched for this country/technology/year.
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: is_capacity_plausible
+        description: True when installed_capacity_mw is not null and >= 10 MW.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: mw_normalized
+        description: "Ratio of generation to installed capacity (mw / installed_capacity_mw). Range: [0, ∞)."
+      - name: mw_normalized_pct
+        description: mw_normalized expressed as a percentage.
+      - name: mw_normalized_plausible
+        description: Same as mw_normalized but null when is_capacity_plausible is false.
+      - name: mw_normalized_pct_plausible
+        description: Same as mw_normalized_pct but null when is_capacity_plausible is false.
+
+  - name: int_load_country_time_enriched
+    description: >
+      Adds time dimensions and a data quality flag to staged load data.
+    columns:
+      - name: id
+        description: Same SHA-256 key as stg_load.
+        tests: [not_null]
+      - name: timestamp
+        description: UTC timestamp.
+        tests: [not_null]
+      - name: ds
+        description: Calendar date.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: load_mw
+        description: Electricity demand in MW.
+        tests: [not_null]
+      - name: is_load_non_positive
+        description: True when load_mw is null or <= 0 (edge case flagging).
+
+  - name: int_price_country_time_enriched
+    description: >
+      Adds time dimensions and data quality flags to staged price data.
+    columns:
+      - name: id
+        description: Same SHA-256 key as stg_prices.
+        tests: [not_null]
+      - name: timestamp
+        description: UTC timestamp.
+        tests: [not_null]
+      - name: ds
+        description: Calendar date.
+        tests: [not_null]
+      - name: country
+        description: ISO-2 country code (bidding zone).
+        tests: [not_null]
+      - name: is_price_missing
+        description: True when price_eur_mwh is null.
+      - name: is_price_negative
+        description: True when price_eur_mwh < 0 (valid in markets with excess renewables).
+
+  - name: int_crossborder_flow_country_time_enriched
+    description: >
+      Adds time dimensions, normalises direction values, and computes a signed flow measure
+      (import = positive, export = negative) for net balance calculations.
+    columns:
+      - name: id
+        description: Same SHA-256 key as stg_crossborder_flows.
+        tests: [not_null]
+      - name: timestamp
+        description: UTC timestamp.
+        tests: [not_null]
+      - name: ds
+        description: Calendar date.
+        tests: [not_null]
+      - name: country
+        description: Reference country (main_country from staging).
+        tests: [not_null]
+      - name: border_country
+        description: Neighbouring country.
+        tests: [not_null]
+      - name: flow_direction
+        description: Lowercased direction ('import' or 'export').
+        tests: [not_null]
+      - name: signed_flow_mw
+        description: flow_mw with sign applied (positive for imports, negative for exports). Null for unmapped directions.
+      - name: is_flow_missing
+        description: True when flow_mw is null.
+      - name: is_flow_direction_unmapped
+        description: True when flow_direction is not 'import' or 'export'.
+
+  - name: dim_date
+    description: Calendar dimension derived from all dates present across source datasets.
+    columns:
+      - name: date_key
+        description: Integer date key in YYYYMMDD format.
+        tests: [not_null, unique]
+      - name: ds
+        description: Calendar date.
+        tests: [not_null, unique]
+
+  - name: dim_country
+    description: >
+      Dimension of all country codes observed across any source dataset.
+      Enriched with full country name and region from the country_names seed.
+    columns:
+      - name: country_key
+        description: ISO-2 country code, used as the join key.
+        tests: [not_null, unique]
+      - name: country
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: country_name
+        description: Full country name (e.g. 'Italy'). Falls back to country code if not in seed.
+      - name: region
+        description: Geographic region (e.g. 'Southern Europe').
+
+  - name: dim_technology
+    description: Dimension of all generation technology types observed in the data.
+    columns:
+      - name: technology_key
+        description: PSR code, used as the join key.
+        tests: [not_null, unique]
+      - name: psr_code
+        description: ENTSO-E PSR type code.
+        tests: [not_null]
+      - name: energy_type
+        description: Human-readable technology name.
+        tests: [not_null]
+      - name: is_renewable
+        description: Renewable classification based on technology name. Null for ambiguous types.
+
+  - name: dim_country_border_connection
+    description: Dimension of all distinct country–border–direction combinations observed in flow data.
+    columns:
+      - name: country_border_connection_key
+        description: Composite key in the format 'country|border_country|flow_direction'.
+        tests: [not_null, unique]
+      - name: country
+        description: Reference country.
+        tests: [not_null]
+      - name: border_country
+        description: Neighbouring country.
+        tests: [not_null]
+      - name: flow_direction
+        description: Direction of exchange ('import' or 'export').
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['import', 'export']
+
+  - name: fct_generation_capacity_daily_technology
+    description: >
+      Daily generation and capacity utilisation aggregated by country and technology.
+      Grain: one row per (country, date, psr_code).
+    columns:
+      - name: generation_technology_day_key
+        description: Composite key in the format 'YYYYMMDD|country|psr_code'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key (YYYYMMDD).
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: technology_key
+        description: PSR code.
+        tests: [not_null]
+      - name: generation_mw_sum
+        description: Total MWh-equivalent generation for the day (sum of hourly MW readings).
+      - name: generation_mw_avg
+        description: Average hourly generation in MW.
+      - name: generation_mw_peak
+        description: Peak hourly generation in MW.
+      - name: mw_normalized_pct_avg
+        description: Average capacity utilisation percentage across hours with plausible capacity data.
+      - name: mw_normalized_pct_peak
+        description: Peak capacity utilisation percentage.
+
+  - name: fct_generation_capacity_daily_country
+    description: >
+      Daily generation and capacity utilisation aggregated at country level (all technologies combined).
+      Grain: one row per (country, date).
+    columns:
+      - name: generation_country_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: generation_mw_sum
+        description: Total MWh-equivalent generation across all technologies.
+      - name: generation_mw_peak
+        description: Peak combined generation hour in MW.
+      - name: mw_normalized_pct_avg
+        description: Average capacity utilisation percentage across technologies with plausible capacity.
+
+  - name: fct_country_load_daily
+    description: >
+      Daily electricity demand aggregated by country.
+      Grain: one row per (country, date).
+    columns:
+      - name: country_load_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: load_mw_sum
+        description: Sum of all hourly demand readings (MWh-equivalent).
+        tests: [not_null]
+      - name: load_mw_avg
+        description: Average hourly demand in MW.
+      - name: load_mw_peak
+        description: Maximum hourly demand in MW.
+      - name: load_mw_min
+        description: Minimum hourly demand in MW.
+      - name: load_non_positive_ratio
+        description: Share of hours with non-positive demand (data quality indicator).
+
+  - name: fct_country_price_daily
+    description: >
+      Daily Day-Ahead Market price statistics by country.
+      Grain: one row per (country, date).
+    columns:
+      - name: country_price_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: price_eur_mwh_avg
+        description: Average Day-Ahead price in EUR/MWh.
+      - name: price_eur_mwh_peak
+        description: Maximum price in EUR/MWh.
+      - name: price_eur_mwh_min
+        description: Minimum price in EUR/MWh (can be negative).
+      - name: price_eur_mwh_stddev
+        description: Sample standard deviation of hourly prices (volatility indicator).
+      - name: price_negative_ratio
+        description: Share of hours with negative prices.
+      - name: price_missing_ratio
+        description: Share of hours with missing price data.
+
+  - name: fct_country_border_flow_daily
+    description: >
+      Daily cross-border electricity flow aggregated by country, border country, and direction.
+      Grain: one row per (country, border_country, flow_direction, date).
+    columns:
+      - name: country_border_flow_day_key
+        description: Composite key in the format 'YYYYMMDD|country|border_country|flow_direction'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: flow_mw_sum
+        description: Total MWh-equivalent flow in the given direction.
+      - name: flow_mw_avg
+        description: Average hourly flow in MW.
+      - name: flow_mw_peak
+        description: Peak hourly flow in MW.
+      - name: signed_flow_mw_sum
+        description: Signed sum (imports positive, exports negative).
+
+  - name: fct_country_net_import_daily
+    description: >
+      Daily net import/export balance aggregated at country level across all borders.
+      Grain: one row per (country, date).
+    columns:
+      - name: country_net_import_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: import_flow_mw_sum
+        description: Total imported MWh-equivalent across all borders.
+      - name: export_flow_mw_sum
+        description: Total exported MWh-equivalent across all borders.
+      - name: net_import_mw_sum
+        description: Net import balance (imports minus exports). Positive = net importer.
+
+  - name: mart_country_energy_balance_daily
+    description: >
+      Top-level mart combining generation, load, and net import for a complete daily energy
+      balance per country. Computes self-sufficiency and import-dependency KPIs.
+      Grain: one row per (country, date).
+    columns:
+      - name: country_energy_balance_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: generation_minus_load_mw
+        description: "Difference between total generation and demand (generation - load). Positive = produced more than consumed."
+      - name: supply_with_net_import_mw
+        description: Effective supply including cross-border net import (generation + net_import).
+      - name: residual_balance_mw
+        description: "Residual after matching supply to demand (generation + net_import - load). Should be close to zero."
+      - name: import_dependency_ratio
+        description: "net_import / load. Positive = net importer; negative = net exporter."
+      - name: self_sufficiency_ratio
+        description: "generation / load. Values > 1 indicate the country produces more than it consumes."
+
+  - name: mart_country_price_load_daily
+    description: >
+      Mart combining Day-Ahead prices and electricity demand for correlation and market regime analysis.
+      Grain: one row per (country, date).
+    columns:
+      - name: country_price_load_day_key
+        description: Composite key in the format 'YYYYMMDD|country'.
+        tests: [not_null, unique]
+      - name: date_key
+        description: Integer date key.
+        tests: [not_null]
+      - name: country_key
+        description: ISO-2 country code.
+        tests: [not_null]
+      - name: price_to_load_ratio
+        description: Average price divided by average load (price_eur_mwh_avg / load_mw_avg).
+      - name: price_regime
+        description: "Qualitative price classification: negative_price_regime (<0), low_price_regime (<50), mid_price_regime (<120), high_price_regime (>=120). EUR/MWh thresholds."

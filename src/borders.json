@@ -1,25 +1,72 @@
 {
-  "IT": {
-    "domain": "10YIT-GRTN-----B",
+  "AL": {
+    "domain": "10YAL-KESH-----5",
     "borders": [
-      {"code": "AT", "domain": "10YAT-APG------L"},
-      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
-      {"code": "FR", "domain": "10YFR-RTE------C"},
       {"code": "GR", "domain": "10YGR-HTSO-----Y"},
       {"code": "ME", "domain": "10YCS-CG-TSO---S"},
-      {"code": "MT", "domain": "10Y1001A1001A93C"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "XK", "domain": "10Y1001C--00100H"}
+    ]
+  },
+  "AT": {
+    "domain": "10YAT-APG------L",
+    "borders": [
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "CZ", "domain": "10YCZ-CEPS-----N"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"},
       {"code": "SI", "domain": "10YSI-ELES-----O"}
     ]
   },
-  "FR": {
-    "domain": "10YFR-RTE------C",
+  "BA": {
+    "domain": "10YBA-JPCC-----D",
     "borders": [
-      {"code": "BE", "domain": "10YBE----------2"},
-      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "HR", "domain": "10YHR-HEP------M"},
+      {"code": "ME", "domain": "10YCS-CG-TSO---S"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"}
+    ]
+  },
+  "BE": {
+    "domain": "10YBE----------2",
+    "borders": [
       {"code": "DE", "domain": "10Y1001A1001A83F"},
-      {"code": "ES", "domain": "10YES-REE------0"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
       {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "LU", "domain": "10YLU-CEGEDEL-NQ"},
+      {"code": "NL", "domain": "10YNL----------L"}
+    ]
+  },
+  "BG": {
+    "domain": "10YCA-BULGARIA-R",
+    "borders": [
+      {"code": "GR", "domain": "10YGR-HTSO-----Y"},
+      {"code": "MK", "domain": "10YMK-MEPSO----8"},
+      {"code": "RO", "domain": "10YRO-TEL------P"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "TR", "domain": "10YTR-TEIAS----W"}
+    ]
+  },
+  "CH": {
+    "domain": "10YCH-SWISSGRIDZ",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
       {"code": "IT", "domain": "10YIT-GRTN-----B"}
+    ]
+  },
+  "CY": {
+    "domain": "10YCY-1001A0003J",
+    "borders": []
+  },
+  "CZ": {
+    "domain": "10YCZ-CEPS-----N",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"},
+      {"code": "SK", "domain": "10YSK-SEPS-----K"}
     ]
   },
   "DE": {
@@ -38,32 +85,287 @@
       {"code": "SE", "domain": "10YSE-1--------K"}
     ]
   },
+  "DK": {
+    "domain": "10Y1001A1001A65H",
+    "borders": [
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "NL", "domain": "10YNL----------L"},
+      {"code": "NO", "domain": "10YNO-0--------C"},
+      {"code": "SE", "domain": "10YSE-1--------K"}
+    ]
+  },
+  "EE": {
+    "domain": "10Y1001A1001A39I",
+    "borders": [
+      {"code": "FI", "domain": "10YFI-1--------U"},
+      {"code": "LV", "domain": "10YLV-1001A00074"}
+    ]
+  },
   "ES": {
     "domain": "10YES-REE------0",
     "borders": [
       {"code": "FR", "domain": "10YFR-RTE------C"},
-      {"code": "PT", "domain": "10YPT-REN------W"},
-      {"code": "MA", "domain": "10YMA-ONE------C"}
+      {"code": "PT", "domain": "10YPT-REN------W"}
     ]
   },
-  "CH": {
-    "domain": "10YCH-SWISSGRIDZ",
+  "FI": {
+    "domain": "10YFI-1--------U",
+    "borders": [
+      {"code": "EE", "domain": "10Y1001A1001A39I"},
+      {"code": "NO", "domain": "10YNO-0--------C"},
+      {"code": "SE", "domain": "10YSE-1--------K"}
+    ]
+  },
+  "FR": {
+    "domain": "10YFR-RTE------C",
+    "borders": [
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "ES", "domain": "10YES-REE------0"},
+      {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"},
+      {"code": "LU", "domain": "10YLU-CEGEDEL-NQ"}
+    ]
+  },
+  "GB": {
+    "domain": "10Y1001A1001A92E",
+    "borders": [
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "DK", "domain": "10Y1001A1001A65H"},
+      {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "IE", "domain": "10YIE-1001A00010"},
+      {"code": "NL", "domain": "10YNL----------L"},
+      {"code": "NO", "domain": "10YNO-0--------C"}
+    ]
+  },
+  "GE": {
+    "domain": "10Y1001A1001B012",
+    "borders": [
+      {"code": "TR", "domain": "10YTR-TEIAS----W"}
+    ]
+  },
+  "GR": {
+    "domain": "10YGR-HTSO-----Y",
+    "borders": [
+      {"code": "AL", "domain": "10YAL-KESH-----5"},
+      {"code": "BG", "domain": "10YCA-BULGARIA-R"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"},
+      {"code": "MK", "domain": "10YMK-MEPSO----8"},
+      {"code": "TR", "domain": "10YTR-TEIAS----W"}
+    ]
+  },
+  "HR": {
+    "domain": "10YHR-HEP------M",
+    "borders": [
+      {"code": "BA", "domain": "10YBA-JPCC-----D"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "SI", "domain": "10YSI-ELES-----O"}
+    ]
+  },
+  "HU": {
+    "domain": "10YHU-MAVIR----U",
     "borders": [
       {"code": "AT", "domain": "10YAT-APG------L"},
-      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "HR", "domain": "10YHR-HEP------M"},
+      {"code": "RO", "domain": "10YRO-TEL------P"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "SI", "domain": "10YSI-ELES-----O"},
+      {"code": "SK", "domain": "10YSK-SEPS-----K"},
+      {"code": "UA", "domain": "10Y1001C--00003F"}
+    ]
+  },
+  "IE": {
+    "domain": "10YIE-1001A00010",
+    "borders": [
+      {"code": "GB", "domain": "10Y1001A1001A92E"}
+    ]
+  },
+  "IT": {
+    "domain": "10YIT-GRTN-----B",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
       {"code": "FR", "domain": "10YFR-RTE------C"},
+      {"code": "GR", "domain": "10YGR-HTSO-----Y"},
+      {"code": "ME", "domain": "10YCS-CG-TSO---S"},
+      {"code": "MT", "domain": "10Y1001A1001A93G"},
+      {"code": "SI", "domain": "10YSI-ELES-----O"}
+    ]
+  },
+  "LT": {
+    "domain": "10YLT-1001A0008Q",
+    "borders": [
+      {"code": "LV", "domain": "10YLV-1001A00074"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"},
+      {"code": "SE", "domain": "10YSE-1--------K"}
+    ]
+  },
+  "LU": {
+    "domain": "10YLU-CEGEDEL-NQ",
+    "borders": [
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "FR", "domain": "10YFR-RTE------C"}
+    ]
+  },
+  "LV": {
+    "domain": "10YLV-1001A00074",
+    "borders": [
+      {"code": "EE", "domain": "10Y1001A1001A39I"},
+      {"code": "LT", "domain": "10YLT-1001A0008Q"}
+    ]
+  },
+  "MD": {
+    "domain": "10Y1001A1001A990",
+    "borders": [
+      {"code": "RO", "domain": "10YRO-TEL------P"},
+      {"code": "UA", "domain": "10Y1001C--00003F"}
+    ]
+  },
+  "ME": {
+    "domain": "10YCS-CG-TSO---S",
+    "borders": [
+      {"code": "AL", "domain": "10YAL-KESH-----5"},
+      {"code": "BA", "domain": "10YBA-JPCC-----D"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "XK", "domain": "10Y1001C--00100H"}
+    ]
+  },
+  "MK": {
+    "domain": "10YMK-MEPSO----8",
+    "borders": [
+      {"code": "BG", "domain": "10YCA-BULGARIA-R"},
+      {"code": "GR", "domain": "10YGR-HTSO-----Y"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "XK", "domain": "10Y1001C--00100H"}
+    ]
+  },
+  "MT": {
+    "domain": "10Y1001A1001A93G",
+    "borders": [
       {"code": "IT", "domain": "10YIT-GRTN-----B"}
     ]
   },
-  "AT": {
-    "domain": "10YAT-APG------L",
+  "NL": {
+    "domain": "10YNL----------L",
     "borders": [
-      {"code": "CH", "domain": "10YCH-SWISSGRIDZ"},
+      {"code": "BE", "domain": "10YBE----------2"},
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "DK", "domain": "10Y1001A1001A65H"},
+      {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "NO", "domain": "10YNO-0--------C"}
+    ]
+  },
+  "NO": {
+    "domain": "10YNO-0--------C",
+    "borders": [
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "DK", "domain": "10Y1001A1001A65H"},
+      {"code": "FI", "domain": "10YFI-1--------U"},
+      {"code": "GB", "domain": "10Y1001A1001A92E"},
+      {"code": "NL", "domain": "10YNL----------L"},
+      {"code": "SE", "domain": "10YSE-1--------K"}
+    ]
+  },
+  "PL": {
+    "domain": "10YPL-AREA-----S",
+    "borders": [
       {"code": "CZ", "domain": "10YCZ-CEPS-----N"},
       {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "LT", "domain": "10YLT-1001A0008Q"},
+      {"code": "SE", "domain": "10YSE-1--------K"},
+      {"code": "SK", "domain": "10YSK-SEPS-----K"},
+      {"code": "UA", "domain": "10Y1001C--00003F"}
+    ]
+  },
+  "PT": {
+    "domain": "10YPT-REN------W",
+    "borders": [
+      {"code": "ES", "domain": "10YES-REE------0"}
+    ]
+  },
+  "RO": {
+    "domain": "10YRO-TEL------P",
+    "borders": [
+      {"code": "BG", "domain": "10YCA-BULGARIA-R"},
       {"code": "HU", "domain": "10YHU-MAVIR----U"},
-      {"code": "IT", "domain": "10YIT-GRTN-----B"},
-      {"code": "SI", "domain": "10YSI-ELES-----O"}
+      {"code": "MD", "domain": "10Y1001A1001A990"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"},
+      {"code": "UA", "domain": "10Y1001C--00003F"}
+    ]
+  },
+  "RS": {
+    "domain": "10YCS-SERBIATSOV",
+    "borders": [
+      {"code": "AL", "domain": "10YAL-KESH-----5"},
+      {"code": "BA", "domain": "10YBA-JPCC-----D"},
+      {"code": "BG", "domain": "10YCA-BULGARIA-R"},
+      {"code": "HR", "domain": "10YHR-HEP------M"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "ME", "domain": "10YCS-CG-TSO---S"},
+      {"code": "MK", "domain": "10YMK-MEPSO----8"},
+      {"code": "RO", "domain": "10YRO-TEL------P"},
+      {"code": "XK", "domain": "10Y1001C--00100H"}
+    ]
+  },
+  "SE": {
+    "domain": "10YSE-1--------K",
+    "borders": [
+      {"code": "DE", "domain": "10Y1001A1001A83F"},
+      {"code": "DK", "domain": "10Y1001A1001A65H"},
+      {"code": "FI", "domain": "10YFI-1--------U"},
+      {"code": "LT", "domain": "10YLT-1001A0008Q"},
+      {"code": "NO", "domain": "10YNO-0--------C"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"}
+    ]
+  },
+  "SI": {
+    "domain": "10YSI-ELES-----O",
+    "borders": [
+      {"code": "AT", "domain": "10YAT-APG------L"},
+      {"code": "HR", "domain": "10YHR-HEP------M"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "IT", "domain": "10YIT-GRTN-----B"}
+    ]
+  },
+  "SK": {
+    "domain": "10YSK-SEPS-----K",
+    "borders": [
+      {"code": "CZ", "domain": "10YCZ-CEPS-----N"},
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"},
+      {"code": "UA", "domain": "10Y1001C--00003F"}
+    ]
+  },
+  "TR": {
+    "domain": "10YTR-TEIAS----W",
+    "borders": [
+      {"code": "BG", "domain": "10YCA-BULGARIA-R"},
+      {"code": "GE", "domain": "10Y1001A1001B012"},
+      {"code": "GR", "domain": "10YGR-HTSO-----Y"}
+    ]
+  },
+  "UA": {
+    "domain": "10Y1001C--00003F",
+    "borders": [
+      {"code": "HU", "domain": "10YHU-MAVIR----U"},
+      {"code": "MD", "domain": "10Y1001A1001A990"},
+      {"code": "PL", "domain": "10YPL-AREA-----S"},
+      {"code": "RO", "domain": "10YRO-TEL------P"},
+      {"code": "SK", "domain": "10YSK-SEPS-----K"}
+    ]
+  },
+  "XK": {
+    "domain": "10Y1001C--00100H",
+    "borders": [
+      {"code": "AL", "domain": "10YAL-KESH-----5"},
+      {"code": "ME", "domain": "10YCS-CG-TSO---S"},
+      {"code": "MK", "domain": "10YMK-MEPSO----8"},
+      {"code": "RS", "domain": "10YCS-SERBIATSOV"}
     ]
   }
 }

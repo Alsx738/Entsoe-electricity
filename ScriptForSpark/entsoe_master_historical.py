@@ -27,11 +27,42 @@ def _path_exists(path):
     return fs.exists(j_path)
 
 
+def _glob_has_match(path_pattern):
+    hconf = spark._jsc.hadoopConfiguration()
+    j_path = spark._jvm.org.apache.hadoop.fs.Path(path_pattern)
+    fs = j_path.getFileSystem(hconf)
+    matches = fs.globStatus(j_path)
+    return matches is not None and len(matches) > 0
+
+
 def _append_without_existing_ids(df, output_path, partition_cols):
-    # Keep append semantics while avoiding duplicates when ranges overlap.
+    """Append new records while skipping IDs already present on disk.
+
+    Performance improvement over reading the full output_path:
+    we identify which partitions the new batch touches and read
+    only those specific sub-directories for existing IDs.
+    For example, if the batch covers IT/2024, only
+    gs://bucket/processed/load/country=IT/year=2024/ is scanned.
+    """
     if _path_exists(output_path):
-        existing_ids = spark.read.parquet(output_path).select("id").distinct()
-        df = df.join(existing_ids, on="id", how="left_anti")
+        # Determine exactly which partition subdirs the new data will land in.
+        partition_values = df.select(partition_cols).distinct().collect()
+        targeted_paths = []
+        for row in partition_values:
+            partition_path = output_path + "/" + "/".join(
+                f"{col}={row[col]}" for col in partition_cols
+            )
+            if _path_exists(partition_path):
+                targeted_paths.append(partition_path)
+
+        if targeted_paths:
+            existing_ids = (
+                spark.read.parquet(*targeted_paths)
+                .select("id")
+                .distinct()
+            )
+            df = df.join(existing_ids, on="id", how="left_anti")
+
     df.write.mode("append").partitionBy(*partition_cols).parquet(output_path)
 
 
@@ -204,18 +235,25 @@ def process_prices(bucket_path, start_date, end_date):
     start_year = datetime.strptime(start_date, "%Y-%m-%d").year
     end_year = datetime.strptime(end_date, "%Y-%m-%d").year
 
-    paths = [
-        f"{bucket_path}/raw/entsoe/historical/prices/country=*/year={year}/*.xml"
-        for year in range(start_year, end_year + 1)
-    ]
+    path = f"{bucket_path}/raw/entsoe/historical/prices/country=*/year=*/*.xml"
+    if not _glob_has_match(path):
+        print("No historical PRICES files found for selected period, skipping PRICES processing")
+        return
+
     output = f"{bucket_path}/processed/prices"
 
     df_raw = (
         spark.read.format("xml")
         .option("rowTag", "TimeSeries")
-        .load(paths)
+        .load(path)
         .withColumn("country", F.regexp_extract(F.input_file_name(), r"country=([A-Z]{2})", 1))
+        .withColumn("file_year", F.regexp_extract(F.input_file_name(), r"year=(\d{4})", 1).cast("int"))
+        .filter((F.col("file_year") >= F.lit(start_year)) & (F.col("file_year") <= F.lit(end_year)))
     )
+
+    if df_raw.rdd.isEmpty():
+        print("No historical PRICES files within selected years, skipping PRICES processing")
+        return
 
     df_period = _explode_if_array(df_raw, "Period", "p")
     point_type = df_period.schema["p"].dataType["Point"].dataType
@@ -259,7 +297,7 @@ def process_installed_capacity(bucket_path, period_key):
         .option("rowTag", "TimeSeries")
         .load(path)
         .withColumn("country", F.regexp_extract(F.input_file_name(), r"country=([A-Z]{2})", 1))
-        .withColumn("capacity_year", F.regexp_extract(F.input_file_name(), r"year=(\\d{4})", 1).cast("int"))
+        .withColumn("capacity_year", F.regexp_extract(F.input_file_name(), r"year=(\d{4})", 1).cast("int"))
         .select("country", "capacity_year", F.col("MktPSRType.psrType").alias("psrType"), "Period")
     )
 

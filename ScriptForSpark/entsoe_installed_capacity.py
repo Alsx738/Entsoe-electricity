@@ -27,9 +27,33 @@ def _path_exists(path):
 
 
 def _append_without_existing_ids(df, output_path, partition_cols):
+    """Append new records while skipping IDs already present on disk.
+
+    Performance improvement over reading the full output_path:
+    we identify which partitions the new batch touches and read
+    only those specific sub-directories for existing IDs.
+    For example, if the batch covers IT/2024, only
+    gs://bucket/processed/installed_capacity/country=IT/year=2024/ is scanned.
+    """
     if _path_exists(output_path):
-        existing_ids = spark.read.parquet(output_path).select("id").distinct()
-        df = df.join(existing_ids, on="id", how="left_anti")
+        # Determine exactly which partition subdirs the new data will land in.
+        partition_values = df.select(partition_cols).distinct().collect()
+        targeted_paths = []
+        for row in partition_values:
+            partition_path = output_path + "/" + "/".join(
+                f"{col}={row[col]}" for col in partition_cols
+            )
+            if _path_exists(partition_path):
+                targeted_paths.append(partition_path)
+
+        if targeted_paths:
+            existing_ids = (
+                spark.read.parquet(*targeted_paths)
+                .select("id")
+                .distinct()
+            )
+            df = df.join(existing_ids, on="id", how="left_anti")
+
     df.write.mode("append").partitionBy(*partition_cols).parquet(output_path)
 
 
@@ -50,7 +74,8 @@ def process_installed_capacity(bucket_path, period_key):
         .option("rowTag", "TimeSeries")
         .load(path)
         .withColumn("country", F.regexp_extract(F.input_file_name(), r"country=([A-Z]{2})", 1))
-        .withColumn("capacity_year", F.regexp_extract(F.input_file_name(), r"year=(\\d{4})", 1).cast("int"))
+        .withColumn("capacity_year", F.regexp_extract(F.input_file_name(), r"year=(\d{4})", 1).cast("int"))
+        .filter(F.col("capacity_year").isNotNull())
         .select("country", "capacity_year", F.col("MktPSRType.psrType").alias("psrType"), "Period")
     )
 

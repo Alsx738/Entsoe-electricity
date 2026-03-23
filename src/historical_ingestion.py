@@ -15,7 +15,7 @@ load_dotenv()
 ENTSOE_TOKEN = os.getenv("ENTSOE_TOKEN")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "entsoe-data-lake")
 API_URL = "https://web-api.tp.entsoe.eu/api"
-MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "10"))
 
 if not ENTSOE_TOKEN:
     raise ValueError("ENTSOE_TOKEN environment variable is not set.")

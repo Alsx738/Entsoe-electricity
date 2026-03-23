@@ -38,4 +38,27 @@ sources:
             - name: main_country
               data_type: string
             - name: year
-              data_type: int64        
+              data_type: int64
+      - name: prices_processed
+        external:
+          location: "gs://entsoe-data-lake-test5689/processed/prices/*"
+          options:
+            format: parquet
+            hive_partition_uri_prefix: "gs://entsoe-data-lake-test5689/processed/prices/"
+          partitions:
+            - name: country
+              data_type: string
+            - name: year
+              data_type: int64
+      - name: installed_capacity_processed
+        external:
+          location: "gs://entsoe-data-lake-test5689/processed/installed_capacity/*"
+          options:
+            format: parquet
+            hive_partition_uri_prefix: "gs://entsoe-data-lake-test5689/processed/installed_capacity/"
+          partitions:
+            - name: country
+              data_type: string
+            - name: year
+              data_type: int64
+
