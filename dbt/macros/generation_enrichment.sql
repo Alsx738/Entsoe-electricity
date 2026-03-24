@@ -41,7 +41,7 @@
     when lower(coalesce({{ energy_type_col }}, '')) like '%oil%'              then false
     when lower(coalesce({{ energy_type_col }}, '')) like '%peat%'             then false
     when lower(coalesce({{ energy_type_col }}, '')) like '%nuclear%'          then false
-    -- Ambiguous / not applicable → null (explicit, not accidental)
-    else null
+    -- Ambiguous / not applicable → false (Evita "undefined" o "null" nelle dashboard)
+    else false
   end
 {% endmacro %}
