@@ -8,51 +8,10 @@ End-to-end data pipeline that ingests electricity data from the [ENTSO-E Transpa
 
 ## Architecture
 
-```
-ENTSO-E REST API
-      │
-      ▼
-Docker containers (Python ingestion)
-      │  raw XML files
-      ▼
-Google Cloud Storage  ──────────────────────────────────────┐
-      │  raw/entsoe/{daily,historical}/.../*.xml            │
-      ▼                                                     │
-Dataproc Serverless (PySpark)                               │
-      │  parses XML → Parquet, partitioned by country/year  │
-      ▼                                                     │
-Google Cloud Storage                                        │
-      │  processed/{load,generation,prices,...}/*.parquet   │
-      ▼                                             (BigQuery External Tables)
-BigQuery ◄──────────────────────────────────────────────────┘
-      │
-      ▼
-dbt (BigQuery adapter)
-      │  staging → intermediate → marts
-      ▼
-Analytics tables (fct_*, mart_*)
-```
+![Architecture ENTSO-E](img/img.jpg)
 
 **Orchestration:** Kestra (self-hosted via Docker Compose)  
 **Infrastructure provisioning:** Terraform
-
----
-
-## Data Flow: from XML to Parquet
-
-ENTSO-E delivers data as XML files following the IEC CIM standard. Each file contains a set of `TimeSeries` elements with `Period` blocks and `Point` entries (one per time interval).
-
-The PySpark scripts in `ScriptForSpark/` parse this structure and produce flat Parquet files:
-
-| Source XML field | Parquet output |
-|---|---|
-| `country` (from file path) | `country` partition column |
-| `timeInterval.start` + `resolution` + `Point.position` | computed `timestamp` |
-| `Point.quantity` | `mw` or `installed_capacity_mw` |
-| `MktPSRType.psrType` | `psrType` (technology code, e.g. `B16` for Solar) |
-| `price.amount` | `price_eur_mwh` |
-
-A deterministic SHA-256 `id` is computed per row (e.g. `SHA256(country|timestamp|psrType)`) to enable idempotent re-runs.
 
 ---
 
@@ -60,7 +19,7 @@ A deterministic SHA-256 `id` is computed per row (e.g. `SHA256(country|timestamp
 
 | Layer | Materialization | Purpose |
 |---|---|---|
-| `staging` | view | Type casting, deduplication, PSR code → name join |
+| `staging` | view | Type casting, deduplication, PSR code  |
 | `intermediate` | view | Time dimensions, quality flags, capacity utilisation |
 | `marts` | table | Daily aggregations (facts, dimensions, final marts) |
 
@@ -77,6 +36,7 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 ├── Dockerfile               # Ingestion image (Python + uv)
 ├── Dockerfile.dbt           # dbt runner image (planned for automated post-daily runs)
 ├── pyproject.toml
+├── .env.example             # template for api token
 ├── src/                     # Python ingestion scripts
 │   ├── daily_ingestion.py
 │   ├── historical_ingestion.py
@@ -101,8 +61,11 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 │   ├── historical.yml
 │   ├── installed_capacity.yml
 │   ├── monthly_compaction.yml
-│   └── docker-compose.yml
+│   ├── docker-compose.yml
+│   ├── .env.example         # template for Kestra DB/auth credentials
+│   └── .env_encoded.example # template for base64-encoded Kestra secrets
 └── terraform/               # GCP infrastructure (GCS, BigQuery, Artifact Registry, VPC)
+    └── terraform.tfvars.example  # template for Terraform variables
 ```
 
 ### Two Dockerfiles
@@ -211,9 +174,19 @@ docker compose up -d
 
 Kestra UI: [http://localhost:8080](http://localhost:8080)
 
-Upload the flows from `kestra/*.yml` via **Flows → Create**.
+**Deploy the flows** — flows are not loaded automatically. For each file in `kestra/*.yml`:
 
-The daily pipeline runs automatically at **03:00 Europe/Rome**. For historical backfill, trigger `entsoe-historical-bootstrap` manually with a start/end date range.
+1. Open **Flows** → **Create** in the Kestra UI
+2. Paste the full contents of the YAML file and click **Save**
+
+Flows to deploy:
+
+- `kestra/daily.yml` — scheduled daily ingestion (runs automatically at 03:00 Europe/Rome)
+- `kestra/historical.yml` — manual backfill trigger (requires `start_date` and `end_date` inputs)
+- `kestra/installed_capacity.yml` — manual, run once per year for capacity updates
+- `kestra/monthly_compaction.yml` — scheduled monthly Parquet compaction
+
+See [`kestra/README.md`](kestra/README.md) for a description of each flow.
 
 ---
 
@@ -240,3 +213,30 @@ uv run dbt docs generate
 ## Known Issue: Kestra + Dataproc LRO Polling
 
 On long Spark jobs (typically historical backfills), Kestra's LRO (Long Running Operation) poller may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. This is a known plugin limitation unrelated to data correctness.
+
+---
+
+## CI/CD
+
+A GitHub Actions workflow (`.github/workflows/deploy.yml`) automatically builds and pushes Docker images to Artifact Registry on every push to `main`.
+
+It uses **path-based change detection** to avoid unnecessary builds:
+
+| Changed paths | Action |
+|---|---|
+| `Dockerfile`, `src/**`, `ScriptForSpark/**`, `kestra/**` | Build & push `ingest:latest` + sync Spark scripts to GCS |
+| `Dockerfile.dbt`, `dbt/**` | Build & push `dbt:latest` |
+
+Required GitHub repository secrets: `GCP_PROJECT_ID`, `GCP_SA_KEY`, `GCS_BUCKET`.
+
+---
+
+## Further Documentation
+
+Each major component has its own README with additional detail:
+
+- `src/` — ingestion scripts, API usage, and country/border configuration
+- `ScriptForSpark/` — Spark job internals, XML parsing logic, and partitioning strategy
+- `dbt/` — dbt model structure, seed files, and macro documentation (also available via `uv run dbt docs generate`)
+- `kestra/` — flow descriptions, secret configuration, and Docker Compose setup
+- `terraform/` — infrastructure overview and variable reference
