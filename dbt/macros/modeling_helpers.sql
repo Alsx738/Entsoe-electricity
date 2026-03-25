@@ -58,12 +58,18 @@
     Standardize incremental lookback filter on a date expression/column.
   Config:
     Uses var incremental_lookback_days (default 3).
+    Supports var execution_date for explicit run boundaries.
 #}
 {% macro incremental_ds_filter(ds_expression) %}
-  {{ ds_expression }} >= date_sub(
-    coalesce((select max(ds) from {{ this }}), date('1900-01-01')),
-    interval {{ var('incremental_lookback_days', 3) }} day
-  )
+  {% if var('execution_date', none) is not none %}
+    {{ ds_expression }} >= date_sub(date('{{ var("execution_date") }}'), interval 1 day)
+    and {{ ds_expression }} <= date('{{ var("execution_date") }}')
+  {% else %}
+    {{ ds_expression }} >= date_sub(
+      coalesce((select max(ds) from {{ this }}), date('1900-01-01')),
+      interval {{ var('incremental_lookback_days', 3) }} day
+    )
+  {% endif %}
 {% endmacro %}
 
 

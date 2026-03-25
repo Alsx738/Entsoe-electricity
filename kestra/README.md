@@ -42,7 +42,8 @@ See the main README for instructions on how to base64-encode secrets.
 3. `process_with_spark` — Dataproc Serverless: runs `entsoe_master_daily.py` to parse XML → Parquet
 4. `notify_on_failure` — Slack alert if ingestion Docker task fails
 
-Can be triggered manually with an optional `--date` override.
+**Dynamic Date Logic:**
+Kestra automatically calculates the target ingestion date as the previous day (`Trigger Date - 1 day`). If you run the flow manually supplying an optional `custom_date`, Kestra will target `custom_date - 1 day`.
 
 ---
 
@@ -72,3 +73,15 @@ Runs `installed_capacity_ingestion.py` (Docker) to download capacity XML, then `
 **Trigger:** scheduled on the 1st of each month.
 
 Runs `entsoe_compact_load.py` on Dataproc to merge small Parquet files into larger ones, reducing file count and improving BigQuery scan performance.
+
+---
+
+### `dbt_daily.yml` — `entsoe-dbt-daily`
+**Trigger:** scheduled at 03:30 Europe/Rome every day (30 minutes after the `daily.yml` ingestion flow).
+
+**Steps:**
+1. `run_dbt_marts` — Docker task: pulls the latest `dbt:latest` image, safely injects GCP credentials bypassing Docker entrypoint caveats, runs `dbt seed` to populate lookup tables, and executes `dbt run` for all mart models (`+path:models/marts`).
+
+**Dynamic Date Logic:**
+This flow parameterizes dbt's incremental models to strictly align with the `daily.yml` ingestion schedule. 
+It calculates a target `execution_date` (Trigger Date - 1 day, or Custom Date - 1 day) and passes it to dbt via `--vars`. A customized dbt macro then forces the incremental models to process exactly `execution_date - 1` and `execution_date` (a 2-day rolling window). This ensures dbt only processes the newly downloaded data and gracefully heals any late-arriving data from the day before, without requiring full dataset scans.

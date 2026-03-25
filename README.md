@@ -4,6 +4,27 @@ End-to-end data pipeline that ingests electricity data from the [ENTSO-E Transpa
 
 **Data collected:** hourly generation by technology, electricity demand (load), Day-Ahead Market prices, cross-border physical flows, and annual installed capacity — for all European countries.
 
+## Why This Project
+
+European power markets are highly interconnected and volatile. Raw ENTSO-E data is rich but fragmented across formats, domains, and time.
+
+This project was built to:
+
+- create a reproducible and automated pipeline from ingestion to analytics
+- aggregate ENTSO-E data and make it easier to understand.
+- collect and organize ENTSO-E data in a consistent way
+- explore and visualize energy sources country by country across Europe
+- analyze import and export flows between countries
+- enable a clearer view of key patterns in the data without unnecessary complexity
+
+In short, the idea is to turn fragmented raw data into something that can actually be explored, interpreted, and used.
+
+Dashboard (Looker Studio):
+<https://lookerstudio.google.com/reporting/d19dd5b5-034a-4618-b384-f41a29db9055>
+
+**
+Data is updated as of March 21 2026, as Kestra—despite having a daily ingestion schedule—is not currently deployed on a server.
+
 ---
 
 ## Architecture
@@ -72,7 +93,7 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 
 - **`Dockerfile`** — builds the Python ingestion image. Used by Kestra's `daily` and `historical` flows to download XML files from the ENTSO-E API and upload them to GCS. The image is pushed to **Google Artifact Registry** and pulled at runtime by Kestra.
 
-- **`Dockerfile.dbt`** — builds a self-contained dbt runner image. Planned for automated dbt execution as a Kestra task immediately after the daily Spark job completes, keeping the transformation layer in sync without manual intervention. Also pushed to Artifact Registry.
+- **`Dockerfile.dbt`** — builds a self-contained dbt runner image. Used for automated dbt execution as a Kestra task (`dbt_daily.yml`) 30 minutes after the daily Spark ingestion, keeping the transformation layer in sync without manual intervention. Also pushed to Artifact Registry.
 
 ---
 
@@ -185,6 +206,7 @@ Flows to deploy:
 - `kestra/historical.yml` — manual backfill trigger (requires `start_date` and `end_date` inputs)
 - `kestra/installed_capacity.yml` — manual, run once per year for capacity updates
 - `kestra/monthly_compaction.yml` — scheduled monthly Parquet compaction
+- `kestra/dbt_daily.yml` — scheduled dbt transformations pipeline (runs automatically at 03:30 Europe/Rome)
 
 See [`kestra/README.md`](kestra/README.md) for a description of each flow.
 

@@ -12,6 +12,9 @@ RUN uv sync --frozen --project /app/dbt
 # Copy dbt project files.
 COPY dbt ./dbt
 
+# Install dbt packages declared in packages.yml so runtime containers can run dbt directly.
+RUN /app/dbt/.venv/bin/dbt deps --project-dir /app/dbt --profiles-dir /app/dbt
+
 ENV UV_PROJECT_ENVIRONMENT=/app/dbt/.venv
 ENV PATH="/app/dbt/.venv/bin:$PATH"
 

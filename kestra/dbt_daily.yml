@@ -1,0 +1,52 @@
+id: entsoe-dbt-daily
+namespace: data_engineering.entsoe
+
+description: |
+  Daily dbt transformations pipeline.
+  This flow is scheduled to run 30 minutes after the daily ingestion flow (at 03:30).
+
+variables:
+  gcp_project_id: "entsoe-electricity-v2"
+
+inputs:
+  - id: custom_date
+    type: DATE
+    description: "Optional run date (yyyy-MM-dd). If empty, trigger date is used."
+    required: false
+
+triggers:
+  - id: dbt_daily_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 3 * * *"
+    timezone: "Europe/Rome"
+
+tasks:
+  - id: run_dbt_marts
+    type: io.kestra.plugin.docker.Run
+    containerImage: "europe-west4-docker.pkg.dev/{{ vars.gcp_project_id }}/entsoe/dbt:latest"
+    pullPolicy: ALWAYS
+    entryPoint:
+      - /bin/sh
+      - -c
+    credentials:
+      registry: "europe-west4-docker.pkg.dev"
+      username: "_json_key"
+      password: "{{ secret('GCP_CREDS_JSON') }}"
+    env:
+      GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
+      GCP_PROJECT_ID: "{{ vars.gcp_project_id }}"
+    commands:
+      - |
+        python -c 'import os; open("/tmp/gcp_creds.json", "w").write(os.environ.get("GCP_SA_CREDENTIALS_JSON", ""))'
+        export GCP_SA_KEY_FILE=/tmp/gcp_creds.json
+        dbt seed --project-dir /app/dbt --profiles-dir /app/dbt
+        dbt run --project-dir /app/dbt --profiles-dir /app/dbt --select "+path:models/marts" --vars "{\"execution_date\": \"{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}\"}"
+
+errors:
+  - id: notify_on_failure
+    type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
+    url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+    payload: |
+      {
+        "text": "ENTSO-E dbt daily pipeline failed. Flow={{ flow.id }}, Execution={{ execution.id }}"
+      }

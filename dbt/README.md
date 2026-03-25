@@ -89,7 +89,8 @@ Top-level tables combining multiple facts into dashboard-ready KPIs.
 
 ## Incremental Strategy
 
-Fact and mart tables use `materialized='incremental'` with `merge` strategy. Each run processes only the last 3 days of data (configurable lookback window), keeping run times and BigQuery costs low. Use `--full-refresh` to reprocess the full history.
+Fact and mart tables use `materialized='incremental'` with `merge` strategy. By default, each run processes only the last 3 days of data (configurable lookback window). 
+However, when orchestrated by Kestra, dbt receives an explicit `execution_date` variable. Because Kestra's daily ingestion pipeline targets the previous day (`Trigger Date - 1 day`), Kestra automatically sets `execution_date` to `Trigger Date - 1 day` (your *data-1*). dbt then enforces a strict 2-day processing window encompassing `execution_date - 1` (*data-2*) and `execution_date` (*data-1*). This ensures perfect alignment with the newly ingested data while proactively healing late-arriving records. Use `--full-refresh` to reprocess the full history.
 
 ## Seeds
 
@@ -107,6 +108,6 @@ Reusable SQL logic shared across models:
 - `is_capacity_plausible` — true when capacity ≥ 10 MW
 - `generation_is_renewable` — classifies technology names as renewable/non-renewable
 - `time_dimension_columns` — generates month, hour, quarter, season, is_weekend from a timestamp
-- `incremental_ds_filter` — filters to the last N days for incremental runs
+- `incremental_ds_filter` — filters to the last N days for incremental runs (local default) or to a strict date boundary when supplied an `execution_date` variable by Kestra.
 
 ![Model](../img/dbt-dag.png)
