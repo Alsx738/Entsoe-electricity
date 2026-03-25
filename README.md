@@ -81,6 +81,7 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 │   ├── daily.yml
 │   ├── historical.yml
 │   ├── installed_capacity.yml
+│   ├── dbt_daily.yml
 │   ├── monthly_compaction.yml
 │   ├── docker-compose.yml
 │   ├── .env.example         # template for Kestra DB/auth credentials
@@ -234,7 +235,9 @@ uv run dbt docs generate
 
 ## Known Issue: Kestra + Dataproc LRO Polling
 
-On long Spark jobs (typically historical backfills), Kestra's LRO (Long Running Operation) poller may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. This is a known plugin limitation unrelated to data correctness.
+- On long Spark jobs (typically historical backfills), Kestra's LRO (Long Running Operation) poller may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. This is a known plugin limitation unrelated to data correctness.
+
+- On a free trial on google cloud, the Dataproc Serverless (pySpark processing) can fail cause the google does not give you enough resources to fulfill the request. Try a different zone, or try again later(worked for me).
 
 ---
 
