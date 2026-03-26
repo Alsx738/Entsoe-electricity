@@ -20,8 +20,14 @@ variable "bucket_name" {
   type        = string
 }
 
-variable "bq_dataset_id" {
-  description = "The BigQuery dataset ID for the data warehouse"
+variable "bq_raw_dataset_id" {
+  description = "The BigQuery dataset ID for the raw data warehouse (external tables)"
   type        = string
-  default     = "entsoe_data"
+  default     = "entsoe_warehouse"
+}
+
+variable "bq_analytics_dataset_id" {
+  description = "The BigQuery dataset ID for final analytics (dbt marts)"
+  type        = string
+  default     = "entsoe_analytics_dev"
 }

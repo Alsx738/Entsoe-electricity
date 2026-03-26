@@ -61,12 +61,21 @@ resource "google_storage_bucket" "data_lake" {
 }
 
 # ==========================================
-# 3. GOOGLE BIGQUERY (Data Warehouse)
+# 3. GOOGLE BIGQUERY (Data Warehouse & Analytics)
 # ==========================================
-resource "google_bigquery_dataset" "data_warehouse" {
-  dataset_id                 = var.bq_dataset_id
+resource "google_bigquery_dataset" "raw_warehouse" {
+  dataset_id                 = var.bq_raw_dataset_id
   location                   = var.region
-  description                = "Dataset containing processed ENTSO-E electricity data"
+  description                = "Dataset containing raw ENTSO-E external tables from Data Lake"
+  delete_contents_on_destroy = true
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
+resource "google_bigquery_dataset" "analytics_mart" {
+  dataset_id                 = var.bq_analytics_dataset_id
+  location                   = var.region
+  description                = "Dataset containing final modeled ENTSO-E facts and dimensions from dbt"
   delete_contents_on_destroy = true
 
   depends_on = [google_project_service.enabled_apis]
