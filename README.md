@@ -23,7 +23,17 @@ Dashboard (Looker Studio):
 <https://lookerstudio.google.com/reporting/d19dd5b5-034a-4618-b384-f41a29db9055>
 
 **
-Data is updated as of March 21 2026, as Kestra—despite having a daily ingestion schedule—is not currently deployed on a server.
+Data is updated as of March 22 2026, as Kestra—despite having a daily ingestion schedule—is not currently deployed on a server.
+
+---
+
+## Dataset Architecture
+
+The project separates storage into specialized BigQuery datasets:
+
+- **`entsoe_warehouse`**: Bronze layer. Contains only external tables pointing to raw Parquet files on GCS. Managed by Terraform + `dbt run-operation stage_external_sources`.
+- **`[target]_staging` & `_int`**: Silver layer. Dynamically created by dbt to hold intermediate and staging views.
+- **`[target]` (e.g. `entsoe_analytics_dev`)**: Gold layer. Contains the final, optimized facts and dimensions (marts) ready for BI consumption. Managed by Terraform + dbt.
 
 ---
 
@@ -86,7 +96,7 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 │   ├── docker-compose.yml
 │   ├── .env.example         # template for Kestra DB/auth credentials
 │   └── .env_encoded.example # template for base64-encoded Kestra secrets
-└── terraform/               # GCP infrastructure (GCS, BigQuery, Artifact Registry, VPC)
+└── terraform/               # GCP infrastructure
     └── terraform.tfvars.example  # template for Terraform variables
 ```
 
@@ -131,11 +141,13 @@ cd terraform
 Create `terraform.tfvars` (gitignored):
 
 ```hcl
-project_id    = "your-gcp-project-id"
-region        = "europe-west4"
-zone          = "europe-west4-a"
-bucket_name   = "your-unique-bucket-name"
-bq_dataset_id = "entsoe_analytics_dev"
+```hcl
+project_id              = "your-gcp-project-id"
+region                  = "europe-west4"
+zone                    = "europe-west4-a"
+bucket_name             = "your-unique-bucket-name"
+bq_raw_dataset_id       = "entsoe_warehouse"      
+bq_analytics_dataset_id = "entsoe_analytics_dev"
 ```
 
 ```bash
@@ -143,7 +155,7 @@ terraform init
 terraform apply
 ```
 
-Creates: GCS bucket, BigQuery dataset, Artifact Registry repository, VPC subnet.
+Creates: GCS bucket, 2 BigQuery datasets (warehouse for raw data, analytics for final models), Artifact Registry repository, VPC subnet.
 
 ---
 
@@ -205,7 +217,7 @@ Flows to deploy:
 
 - `kestra/daily.yml` — scheduled daily ingestion (runs automatically at 03:00 Europe/Rome)
 - `kestra/historical.yml` — manual backfill trigger (requires `start_date` and `end_date` inputs)
-- `kestra/installed_capacity.yml` — manual, run once per year for capacity updates
+- `kestra/installed_capacity.yml` — run once per year for capacity updates
 - `kestra/monthly_compaction.yml` — scheduled monthly Parquet compaction
 - `kestra/dbt_daily.yml` — scheduled dbt transformations pipeline (runs automatically at 03:30 Europe/Rome)
 
@@ -217,6 +229,9 @@ See [`kestra/README.md`](kestra/README.md) for a description of each flow.
 
 ```bash
 cd dbt
+
+# First, run this to create the external tables in BigQuery
+uv run dbt run-operation stage_external_sources
 
 # Load seed reference tables
 uv run dbt seed
@@ -233,11 +248,13 @@ uv run dbt docs generate
 
 ---
 
-## Known Issue: Kestra + Dataproc LRO Polling
+## Known Issue: Kestra + Dataproc
 
-- On long Spark jobs (typically historical backfills), Kestra's LRO (Long Running Operation) poller may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. This is a known plugin limitation unrelated to data correctness.
+- On long Spark jobs (typically historical backfills), Kestra may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. Check the logs of the Dataproc batch for more details.
 
 - On a free trial on google cloud, the Dataproc Serverless (pySpark processing) can fail cause the google does not give you enough resources to fulfill the request. Try a different zone, or try again later(worked for me).
+
+- (Fingers crossed I didn’t miss anything)
 
 ---
 

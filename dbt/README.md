@@ -21,9 +21,11 @@ uv run dbt test
 uv run dbt docs generate
 ```
 
-## Model Layers
+## Model Layers & Custom Schemas
 
-### Staging (`models/staging/`) — materialized as **views**
+This project implements a Medallion architecture. While the default target dataset (e.g., `entsoe_analytics_dev`) holds the final models, dbt dynamically creates suffixed datasets for earlier layers using a custom `generate_schema_name` macro.
+
+### Staging (`models/staging/`) — materialized as **views** in `[target]_staging`
 
 Direct reads from BigQuery External Tables backed by GCS Parquet files. Each model:
 
@@ -41,7 +43,7 @@ Direct reads from BigQuery External Tables backed by GCS Parquet files. Each mod
 
 ---
 
-### Intermediate (`models/intermediate/`) — materialized as **views**
+### Intermediate (`models/intermediate/`) — materialized as **views** in `[target]_int`
 
 Enriches staging data without aggregating. Each model adds:
 
@@ -52,7 +54,7 @@ Enriches staging data without aggregating. Each model adds:
 
 ---
 
-### Marts (`models/marts/`) — materialized as **incremental tables**
+### Marts (`models/marts/`) — materialized as **incremental tables** in `[target]`
 
 #### Dimensions
 
