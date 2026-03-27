@@ -25,6 +25,8 @@ Dashboard (Looker Studio):
 **
 Data is updated as of March 22 2026, as Kestra—despite having a daily ingestion schedule—is not currently deployed on a server.
 
+> **Architecture Update:** The PySpark processing engine has recently been migrated from Dataproc Serverless to a **classic Dataproc Cluster**. If you need the previous Dataproc Serverless implementation, you can find it in the Git history at commit `991538c`. After that commit, the project uses a classic Dataproc Cluster for PySpark processing.
+
 ---
 
 ## Dataset Architecture
@@ -74,7 +76,7 @@ Final mart tables `mart_country_energy_balance_daily` and `mart_country_price_lo
 │   ├── HistoricalPrice.py
 │   ├── countries.json
 │   └── borders.json
-├── ScriptForSpark/          # PySpark jobs (submitted to Dataproc Serverless)
+├── ScriptForSpark/          # PySpark jobs (submitted to Dataproc Cluster)
 │   ├── entsoe_master_daily.py
 │   ├── entsoe_master_historical.py
 │   ├── entsoe_installed_capacity.py
@@ -155,7 +157,9 @@ terraform init
 terraform apply
 ```
 
-Creates: GCS bucket, 2 BigQuery datasets (warehouse for raw data, analytics for final models), Artifact Registry repository, VPC subnet.
+**Creates:** GCS bucket, 2 BigQuery datasets (warehouse for raw data, analytics for final models), Artifact Registry repository, VPC subnet, a classic Dataproc Cluster, Firewall rules, and a Compute Engine VM for Kestra.
+
+> **⚠️ Cost Warning:** The Dataproc cluster and the Kestra VM are active after terraform apply, and they are compute resources that incur ongoing hourly costs. It is highly recommended to stop these resources when they are not actively being used to avoid unexpected charges.
 
 ---
 
@@ -201,12 +205,23 @@ $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json
 
 ### 6 — Start Kestra
 
+You have two options for running Kestra:
+
+1. **Google Cloud VM (Automated):** Terraform provisions a dedicated VM for Kestra. You can SSH into this VM, install Docker, and run Kestra there so it can automatically execute pipelines.
+2. **Local Environment:** You can run Kestra locally using Docker Compose (note that Terraform will still provision the GCP VM).
+
+For detailed setup instructions for both options, please refer to the [Kestra README](kestra/README.md).
+
+If running locally:
+
 ```bash
 cd kestra
 docker compose up -d
 ```
 
 Kestra UI: [http://localhost:8080](http://localhost:8080)
+
+In any case (local or on the VM), you need to deploy the flows manually.
 
 **Deploy the flows** — flows are not loaded automatically. For each file in `kestra/*.yml`:
 
@@ -248,11 +263,11 @@ uv run dbt docs generate
 
 ---
 
-## Known Issue: Kestra + Dataproc
+## Known Issue: Kestra + Dataproc serverless
 
 - On long Spark jobs (typically historical backfills), Kestra may time out and report the task as `FAILED`, while Dataproc continues and completes successfully. The processed Parquet files on GCS are the source of truth — if they exist and are complete, the pipeline succeeded regardless of the Kestra task state. Check the logs of the Dataproc batch for more details.
 
-- On a free trial on google cloud, the Dataproc Serverless (pySpark processing) can fail cause the google does not give you enough resources to fulfill the request. Try a different zone, or try again later(worked for me).
+- On a free trial on Google Cloud, the Dataproc provisioning can occasionally fail because Google might not have enough resources in that specific zone to fulfill the request. Try a different zone, or try again later (this usually works).
 
 - (Fingers crossed I didn’t miss anything)
 

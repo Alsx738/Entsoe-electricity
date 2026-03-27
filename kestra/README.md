@@ -4,6 +4,40 @@ Kestra orchestrates the entire pipeline. All flows are defined as YAML files in 
 
 ## Starting Kestra
 
+### Option 1: Google Cloud VM (Production / Automated)
+
+Terraform provisions a Virtual Machine (VM) on Google Cloud specifically to run Kestra and automate the pipeline.
+
+To configure Kestra on this VM:
+
+1. Find the VM's external IP address in the Google Cloud Console and connect to its terminal via SSH.
+2. Install Docker and Docker Compose by running the following commands:
+
+   ```bash
+   sudo apt update
+   sudo apt install docker.io docker-compose -y
+   sudo systemctl enable docker
+   ```
+
+   > **Note:** The `sudo systemctl enable docker` command ensures that the Docker service starts automatically every time the VM boots up. This is essential for the daily automation schedule because Kestra (running inside Docker) needs to come online as soon as the VM powers on.
+
+3. Copy your `.env` and `.env_encoded` files to the VM (or securely pass them as secrets).
+4. Copy the `docker-compose.yml` file to the VM.
+5. Start Kestra in the background:
+
+   ```bash
+   sudo docker-compose up -d
+   ```
+
+6. Open your local browser and connect to the Kestra UI at `http://<vm-ip-address>:8080`.
+7. Upload the flow YAML files from this directory into Kestra (see below).
+8. **Initial execution:** Manually launch the `historical.yml` flow to ingest past data. Wait for it to complete successfully.
+9. **Automation:** Once the historical run finishes, you can safely close your connection and manually stop the VM. Every night, the VM is scheduled to automatically turn on, run the daily ingestion (`daily.yml`), run the dbt transformations (`dbt_daily.yml`), and shut itself down to save costs.
+
+### Option 2: Local Environment
+
+You can still run Kestra locally using Docker (note that Terraform will still provision the GCP VM regardless).
+
 ```bash
 docker compose up -d
 ```

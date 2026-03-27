@@ -1,12 +1,13 @@
 id: entsoe-historical-bootstrap
 namespace: data_engineering.entsoe
 
-description: Backfill pipeline for yearly historical ENTSO-E XML data.
+description: Backfill pipeline for yearly historical ENTSO-E XML data using physical cluster.
 
 variables:
   gcp_project_id: "entsoe-electricity-v2"
   bucket_name: "entsoe-data-lake-test5689"
   region: "europe-west4"
+  cluster_name: "cluster-cdca"
 
 inputs:
   - id: start_date
@@ -28,7 +29,6 @@ tasks:
       registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
-
     commands:
       - "/app/src/historical_ingestion.py"
       - "--start"
@@ -37,12 +37,11 @@ tasks:
       - "{{ inputs.end_date }}"
       - "--country"
       - "{{ inputs.country }}"
-
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
       GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
-      MAX_WORKERS: "10"
+      MAX_WORKERS: "3"
 
   - id: ingest_historical_prices
     type: io.kestra.plugin.docker.Run
@@ -52,7 +51,6 @@ tasks:
       registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
-
     commands:
       - "/app/src/HistoricalPrice.py"
       - "--start"
@@ -61,47 +59,53 @@ tasks:
       - "{{ inputs.end_date }}"
       - "--country"
       - "{{ inputs.country }}"
-
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
       GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
       MAX_WORKERS: "5"
 
-  - id: process_with_spark
-    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
-    timeout: PT45M
-    name: "entsoe-historical-transform"
-    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+  - id: start_cluster
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
     projectId: "{{ vars.gcp_project_id }}"
-    region: "{{ vars.region }}"
-    execution:
-      subnetworkUri: "projects/{{ vars.gcp_project_id }}/regions/{{ vars.region }}/subnetworks/entsoe-spark-subnet"
-    mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_historical.py"
-    args:
-      - "gs://{{ vars.bucket_name }}"
-      - "{{ inputs.start_date }}"
-      - "{{ inputs.end_date }}"
-    runtime:
-      version: "2.1"
-      properties:
-        "spark.jars.packages": "com.databricks:spark-xml_2.13:0.18.0"
-        "spark.driver.cores": "4"
-        "spark.executor.cores": "4"
-        "spark.driver.memory": "3g"
-        "spark.executor.memory": "3g"
-        "spark.executor.instances": "2"
-        "spark.dataproc.driver.disk.size.gb": "100"
-        "spark.dataproc.executor.disk.size.gb": "100"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters start {{ vars.cluster_name }} --region={{ vars.region }}"
+      
+  - id: process_historical_spark
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - >
+        gcloud dataproc jobs submit pyspark 
+        gs://{{ vars.bucket_name }}/scripts/entsoe_master_historical.py
+        --cluster={{ vars.cluster_name }}
+        --region={{ vars.region }}
+        --properties="spark.jars.packages=com.databricks:spark-xml_2.12:0.18.0,spark.driver.memory=10g,spark.executor.memory=2g,spark.memory.fraction=0.6,spark.sql.shuffle.partitions=20"
+        -- 
+        "gs://{{ vars.bucket_name }}"
+        "{{ inputs.start_date }}"
+        "{{ inputs.end_date }}"
 
-  - id: notify_on_failure
-    type: io.kestra.plugin.core.flow.If
-    condition: "{{ outputs.ingest_historical_data.exitCode != 0 }}"
-    then:
-      - id: send_alert
-        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
-        url: "{{ secret('SLACK_WEBHOOK_URL') }}"
-        payload: |
-          {
-            "text": "ENTSO-E Historical backfill failed for period {{ inputs.start_date }} to {{ inputs.end_date }}."
-          }
+  - id: stop_cluster
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters stop {{ vars.cluster_name }} --region={{ vars.region }}"
+
+errors:
+  - id: stop_cluster_on_error
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters stop {{ vars.cluster_name }} --region={{ vars.region }}"
+  - id: send_slack_alert
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+    payload: |
+      {
+        "text": "ENTSO-E Historical backfill failed for period {{ inputs.start_date }} to {{ inputs.end_date }}."
+      }

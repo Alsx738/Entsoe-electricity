@@ -4,3 +4,40 @@ zone                    = "<YOUR_ZONE>"
 bucket_name             = "<YOUR_BUCKET_NAME>"
 bq_raw_dataset_id       = "entsoe_warehouse"      
 bq_analytics_dataset_id = "entsoe_analytics_dev"
+
+#---dataproc setting, working for me in trial account. dataproc+vm < 12 vCPUs
+
+dataproc_cluster_name               = "cluster-cdca"
+dataproc_staging_bucket_name        = ""
+dataproc_zone                       = "YOUR_ZONE>" 
+dataproc_network_name               = "default"
+dataproc_master_machine_type        = "n4-highmem-2"
+dataproc_master_boot_disk_type      = "hyperdisk-balanced"
+dataproc_master_boot_disk_size_gb   = 40
+dataproc_worker_num_instances       = 2
+dataproc_worker_machine_type        = "n4-highmem-2"
+dataproc_worker_boot_disk_type      = "hyperdisk-balanced"
+dataproc_worker_boot_disk_size_gb   = 40
+dataproc_image_version              = "2.2-debian12"
+dataproc_internal_ip_only           = false
+dataproc_service_account_scopes     = ["https://www.googleapis.com/auth/cloud-platform"]
+dataproc_enable_secure_boot         = false
+dataproc_enable_vtpm                = false
+dataproc_enable_integrity_monitoring = false
+
+kestra_vm_name                    = "kestra-vm"
+kestra_vm_machine_type            = "n2-standard-2"
+kestra_vm_zone                    = "YOUR_ZONE>"
+kestra_vm_boot_image              = "projects/debian-cloud/global/images/debian-12-bookworm-v20260310"
+kestra_vm_boot_disk_size_gb       = 40
+kestra_vm_network_name            = "default"
+kestra_vm_enable_public_ip        = true
+kestra_vm_schedule_policy_name    = "kestra-wake-up" #-- policy to start and stop your vm
+kestra_vm_start_schedule          = "50 2 * * *" #----2.50 am since kestra daily start at 3am
+kestra_vm_stop_schedule           = "0 4 * * *" #--- 4 am since dbt incremental start al 3.30 am
+kestra_vm_schedule_time_zone      = "Europe/Rome"
+kestra_vm_resource_policies       = []
+kestra_vm_tags                    = ["kestra-ui"]
+kestra_vm_firewall_name           = "allow-kestra-ui"
+kestra_vm_allowed_tcp_ports       = ["80", "443", "8080"]
+kestra_vm_allowed_source_ranges   = ["0.0.0.0/0"] #-- or use your ip. If you leave 0.0.0.0/0 evryone can found your vm; at least change login info in .env file of kestra

@@ -2,18 +2,19 @@ id: entsoe-daily-ingestion
 namespace: data_engineering.entsoe
 
 description: |
-  Daily pipeline that ingests ENTSO-E raw XML data and then runs Spark processing on Dataproc.
+  Daily pipeline: Ingestione XML via Docker e processing Spark su cluster fisico (cluster-cdca).
 
 variables:
   target_country: "ALL"
   gcp_project_id: "entsoe-electricity-v2"
   bucket_name: "entsoe-data-lake-test5689"
   region: "europe-west4"
+  cluster_name: "cluster-cdca"
 
 inputs:
   - id: custom_date
     type: DATE
-    description: "Optional run date (yyyy-MM-dd). If empty, trigger date is used."
+    description: "Data opzionale (yyyy-MM-dd). Se vuota, usa la data del trigger."
     required: false
 
 triggers:
@@ -31,7 +32,6 @@ tasks:
       registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
-
     commands:
       - "/app/src/daily_ingestion.py"
       - "--country"
@@ -40,12 +40,11 @@ tasks:
       - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
       - "--end"
       - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
-
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
       GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
-      MAX_WORKERS: "5"
+      MAX_WORKERS: "3"
 
   - id: ingest_daily_prices
     type: io.kestra.plugin.docker.Run
@@ -55,47 +54,57 @@ tasks:
       registry: "europe-west4-docker.pkg.dev"
       username: "_json_key"
       password: "{{ secret('GCP_CREDS_JSON') }}"
-
     commands:
       - "/app/src/dailyPrice.py"
       - "--country"
       - "{{ vars.target_country }}"
       - "--date"
       - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
-
     env:
       ENTSOE_TOKEN: "{{ secret('ENTSOE_TOKEN') }}"
       GCS_BUCKET_NAME: "{{ vars.bucket_name }}"
       GCP_SA_CREDENTIALS_JSON: "{{ secret('GCP_CREDS_JSON') }}"
       MAX_WORKERS: "5"
 
-  - id: process_daily_with_spark
-    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
-    timeout: PT45M
-    name: "entsoe-daily-transform"
-    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+  - id: start_dataproc
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
     projectId: "{{ vars.gcp_project_id }}"
-    region: "{{ vars.region }}"
-    execution:
-      subnetworkUri: "projects/{{ vars.gcp_project_id }}/regions/{{ vars.region }}/subnetworks/entsoe-spark-subnet"
-    mainPythonFileUri: "gs://{{ vars.bucket_name }}/scripts/entsoe_master_daily.py"
-    args:
-      - "gs://{{ vars.bucket_name }}"
-      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
-      - "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
-    runtime:
-      version: "2.1"
-      properties:
-        "spark.jars.packages": "com.databricks:spark-xml_2.13:0.18.0"
-        "spark.driver.cores": "4"
-        "spark.executor.cores": "4"
-        "spark.driver.memory": "3g"
-        "spark.executor.memory": "3g"
-        "spark.executor.instances": "2"
-        "spark.dataproc.driver.disk.size.gb": "100"
-        "spark.dataproc.executor.disk.size.gb": "100"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters start {{ vars.cluster_name }} --region={{ vars.region }}"
+
+
+  - id: process_daily_with_spark
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - >
+        gcloud dataproc jobs submit pyspark 
+        gs://{{ vars.bucket_name }}/scripts/entsoe_master_daily.py
+        --cluster={{ vars.cluster_name }}
+        --region={{ vars.region }}
+        --properties="spark.jars.packages=com.databricks:spark-xml_2.12:0.18.0,spark.driver.memory=10g,spark.executor.memory=2g,spark.memory.fraction=0.6,spark.sql.shuffle.partitions=12"
+        -- 
+        "gs://{{ vars.bucket_name }}"
+        "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
+        "{{ (inputs.custom_date ?? trigger.date | date('yyyy-MM-dd')) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd') }}"
+
+
+  - id: stop_dataproc
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters stop {{ vars.cluster_name }} --region={{ vars.region }}"
 
 errors:
+  - id: stop_cluster_on_error
+    type: io.kestra.plugin.gcp.cli.GCloudCLI
+    projectId: "{{ vars.gcp_project_id }}"
+    serviceAccount: "{{ secret('GCP_CREDS_JSON') }}"
+    commands:
+      - "gcloud dataproc clusters stop {{ vars.cluster_name }} --region={{ vars.region }}"
   - id: notify_on_failure
     type: io.kestra.plugin.slack.notifications.SlackIncomingWebhook
     url: "{{ secret('SLACK_WEBHOOK_URL') }}"

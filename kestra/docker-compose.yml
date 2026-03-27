@@ -7,6 +7,7 @@ volumes:
 services:
   postgres:
     image: postgres:16
+    restart: always
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -21,6 +22,7 @@ services:
 
   kestra:
     image: kestra/kestra:v1.3.3
+    restart: always
     pull_policy: always    
     user: "root"
     command: >
@@ -32,6 +34,7 @@ services:
     env_file:
       - .env_encoded
     environment:
+      KESTRA_PLUGINS: "io.kestra.plugin:plugin-gcp:latest"
       KESTRA_CONFIGURATION: |
         datasources:
           postgres:

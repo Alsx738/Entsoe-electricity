@@ -132,3 +132,146 @@ resource "google_compute_firewall" "allow_internal_spark" {
 
   source_ranges = ["10.0.0.0/24"]
 }
+
+locals {
+  dataproc_staging_bucket_name = var.dataproc_staging_bucket_name != "" ? var.dataproc_staging_bucket_name : var.bucket_name
+}
+
+# ==========================================
+# 6. DATAPROC CLUSTER
+# NOTE: After creation, the Dataproc cluster is running (ON) and incurs costs.
+# It is recommended to stop it manually when not in use.
+# ==========================================
+resource "google_dataproc_cluster" "entsoe_cluster" {
+  name    = var.dataproc_cluster_name
+  region  = var.region
+  project = var.project_id
+
+  cluster_config {
+    staging_bucket = local.dataproc_staging_bucket_name
+
+    master_config {
+      num_instances = 1
+      machine_type  = var.dataproc_master_machine_type
+
+      disk_config {
+        boot_disk_type    = var.dataproc_master_boot_disk_type
+        boot_disk_size_gb = var.dataproc_master_boot_disk_size_gb
+      }
+    }
+
+    worker_config {
+      num_instances = var.dataproc_worker_num_instances
+      machine_type  = var.dataproc_worker_machine_type
+
+      disk_config {
+        boot_disk_type    = var.dataproc_worker_boot_disk_type
+        boot_disk_size_gb = var.dataproc_worker_boot_disk_size_gb
+      }
+    }
+
+    software_config {
+      image_version = var.dataproc_image_version
+
+      override_properties = {
+        "dataproc:dataproc.allow.zero.workers" = "true"
+        "spark:spark.driver.memory"            = "10g"
+        "spark:spark.executor.memory"          = "2g"
+        "spark:spark.sql.shuffle.partitions"   = "12"
+      }
+    }
+
+    gce_cluster_config {
+      zone             = var.dataproc_zone
+      network          = var.dataproc_network_name
+      internal_ip_only = var.dataproc_internal_ip_only
+
+      service_account_scopes = var.dataproc_service_account_scopes
+
+      shielded_instance_config {
+        enable_secure_boot          = var.dataproc_enable_secure_boot
+        enable_vtpm                 = var.dataproc_enable_vtpm
+        enable_integrity_monitoring = var.dataproc_enable_integrity_monitoring
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [cluster_config[0].software_config[0].override_properties]
+  }
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
+# ==========================================
+# 7. KESTRA VM + PUBLIC ACCESS FIREWALL
+# ==========================================
+resource "google_compute_resource_policy" "kestra_vm_schedule" {
+  name   = var.kestra_vm_schedule_policy_name
+  region = var.region
+
+  instance_schedule_policy {
+    vm_start_schedule {
+      schedule = var.kestra_vm_start_schedule
+    }
+
+    vm_stop_schedule {
+      schedule = var.kestra_vm_stop_schedule
+    }
+
+    time_zone = var.kestra_vm_schedule_time_zone
+  }
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
+resource "google_compute_instance" "kestra_vm" {
+  name         = var.kestra_vm_name
+  machine_type = var.kestra_vm_machine_type
+  zone         = var.kestra_vm_zone
+  tags         = var.kestra_vm_tags
+
+  # This script runs as root when the VM starts
+  metadata_startup_script = <<-EOT
+    #!/bin/bash
+    timedatectl set-timezone Europe/Rome
+  EOT
+
+  boot_disk {
+    initialize_params {
+      image = var.kestra_vm_boot_image
+      size  = var.kestra_vm_boot_disk_size_gb
+    }
+  }
+
+  network_interface {
+    network = var.kestra_vm_network_name
+
+    dynamic "access_config" {
+      for_each = var.kestra_vm_enable_public_ip ? [1] : []
+      content {}
+    }
+  }
+
+  resource_policies = concat(
+    [google_compute_resource_policy.kestra_vm_schedule.id],
+    var.kestra_vm_resource_policies
+  )
+
+  depends_on = [google_project_service.enabled_apis]
+}
+
+resource "google_compute_firewall" "allow_kestra_ui" {
+  name    = var.kestra_vm_firewall_name
+  network = var.kestra_vm_network_name
+
+  allow {
+    protocol = "tcp"
+    ports    = var.kestra_vm_allowed_tcp_ports
+  }
+
+  source_ranges = var.kestra_vm_allowed_source_ranges
+  target_tags   = var.kestra_vm_tags
+
+  depends_on = [google_project_service.enabled_apis]
+}
