@@ -22,10 +22,8 @@ In short, the idea is to turn fragmented raw data into something that can actual
 Dashboard (Looker Studio):
 <https://lookerstudio.google.com/reporting/d19dd5b5-034a-4618-b384-f41a29db9055>
 
-**
-Data is updated as of March 22 2026, as Kestra—despite having a daily ingestion schedule—is not currently deployed on a server.
 
-> **Architecture Update:** The PySpark processing engine has recently been migrated from Dataproc Serverless to a **classic Dataproc Cluster**. If you need the previous Dataproc Serverless implementation, you can find it in the Git history at commit `991538c`. After that commit, the project uses a classic Dataproc Cluster for PySpark processing.
+> **Architecture Update:** The PySpark processing engine has recently been migrated from Dataproc Serverless to a **classic Dataproc Cluster**. This change was made to stay within the 12 vCPU limit(free trial account on GC) and to allow the use of a dedicated VM for Kestra, enabling fully automated daily ingestion and processing workflows. Please note that any previous references to Dataproc Serverless—including diagrams, images, or text in the README from earlier commits—should now be interpreted as referring to the classic Dataproc cluster. If you are interested in the original Dataproc Serverless implementation, you can find it in the Git history at commit 991538c.
 
 ---
 
